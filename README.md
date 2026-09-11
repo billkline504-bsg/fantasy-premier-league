@@ -103,3 +103,57 @@ The AIDLC documentation pipeline (domain spec through implementation task breakd
 - **[`mockup/`](mockup/index.html)** — an illustrative HTML mock-up of the application's screens, kept versioned (`index.v{N}.html`) alongside the live `index.html`. Several documentation updates in `docs/aidlc/01-requirements/` were driven by gaps a mock-up review surfaced.
 
 Editing the docs or the mockup? See **[`CONTRIBUTING.md`](CONTRIBUTING.md)** for the versioning conventions both follow. Building `src/`/`tests/`? Requires the .NET 8 SDK (ADR-002); `dotnet build EplFantasy.sln` and `dotnet test` work from the repo root. This repo ships its own `NuGet.Config` scoped to `nuget.org` only — see that file's comment if your organization requires packages to route through an internal feed instead.
+
+## Local database setup (PostgreSQL)
+
+The schema is hand-written SQL, not EF Core migrations — `EplFantasyDbContext` maps against an already-migrated database and never generates its own schema (see [`ServiceCollectionExtensions.cs`](src/EplFantasy.Infrastructure/ServiceCollectionExtensions.cs)'s own doc comment). The authoritative DDL lives in [`docs/aidlc/06-database-migrations/migrations/`](docs/aidlc/06-database-migrations/migrations/) as `V001`–`V013`, applied strictly in that order; see that folder's own [strategy doc](docs/aidlc/06-database-migrations/Fantasy%20EPL%20League%20Manager%20—%20Database%20Migration%20Strategy%20v1.0.md) for why each file exists and what it adds. If you've never worked with PostgreSQL before, the commands below are literally all you need for local development.
+
+**Prerequisites:** Docker Desktop (or another Docker engine). No local PostgreSQL install is needed — a container is quicker to set up and easy to throw away and recreate.
+
+**1. Start a disposable PostgreSQL 16 container:**
+
+```bash
+docker run --rm -d --name eplfantasy-db -e POSTGRES_PASSWORD=devpassword -p 55432:5432 postgres:16
+```
+
+`--rm` means the container (and all its data) disappears the moment it's stopped — expected for local dev, since the migration files are the real source of truth and can always recreate it. Port `55432` on your machine maps to Postgres's usual `5432` inside the container, so it won't collide if you already have a Postgres instance using the default port.
+
+**2. Create the application database and apply every migration file in order:**
+
+```bash
+docker exec -i eplfantasy-db psql -U postgres -c "CREATE DATABASE eplfantasy;"
+cd docs/aidlc/06-database-migrations/migrations
+for f in V*.sql; do
+  echo "Applying $f..."
+  docker exec -i eplfantasy-db psql -U postgres -d eplfantasy -v ON_ERROR_STOP=1 -f - < "$f"
+done
+```
+
+(`V*.sql` glob-expands in numeric order here because every file is zero-padded to three digits — `V001`, `V002`, etc.)
+
+**3. Enable login for the application role.** `V013__grants.sql` deliberately creates `eplfantasy_app` as a `NOLOGIN` group role (BR-173 — no credential is ever committed to a migration file; in a real deployment, ops provisions a separate login role as a member of this group at deploy time). For local dev, just give it a password directly:
+
+```bash
+docker exec -i eplfantasy-db psql -U postgres -c "ALTER ROLE eplfantasy_app WITH LOGIN PASSWORD 'dev-only-not-a-real-secret';"
+```
+
+**4. Point the app at it.** [`src/EplFantasy.Api/appsettings.Development.json`](src/EplFantasy.Api/appsettings.Development.json) already has a matching `ConnectionStrings:Default` entry:
+
+```
+Host=localhost;Port=55432;Database=eplfantasy;Username=eplfantasy_app;Password=dev-only-not-a-real-secret
+```
+
+Run the API with `dotnet run --no-launch-profile` from `src/EplFantasy.Api` (`--no-launch-profile` skips `launchSettings.json`'s `launchBrowser: true`, which otherwise tries — and can hang — in a terminal-only environment), and it will connect and start executing real queries against this database.
+
+**Useful `psql` commands, if you're new to Postgres:**
+
+| Command | What it does |
+|---|---|
+| `docker exec -it eplfantasy-db psql -U postgres -d eplfantasy` | Open an interactive `psql` shell inside the container (drop `-it` and pipe a file/`-c` instead for one-shot, non-interactive use, as above) |
+| `\dt` | List tables in the current schema |
+| `\d <table_name>` | Describe one table's columns, indexes, and constraints |
+| `\du` | List roles and their attributes (login/superuser/etc.) |
+| `\l` | List databases |
+| `\q` | Quit the `psql` shell |
+
+**Tearing down / starting fresh:** `docker stop eplfantasy-db` (the `--rm` flag from step 1 deletes the container and all its data automatically). Re-run steps 1–3 to get a clean database again — this is the normal way to reset local state, not something to be cautious about, since none of it is meant to persist.
