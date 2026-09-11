@@ -93,10 +93,21 @@ public class DeadlineSweepBackgroundServiceTests
         var sweep = CreateSweep(provider, TimeSpan.FromMilliseconds(20));
 
         await sweep.StartAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
+
+        // Poll for the tick count instead of sleeping a fixed 150ms and asserting once: a loaded
+        // CI runner can be slow enough that real 20ms timer ticks don't land 3 times in a fixed
+        // 150ms wall-clock window even though the loop is working correctly, which made this test
+        // flaky under CI (never under this repo's own local runs). Bounding the poll at a generous
+        // 5s instead still fails on a genuinely broken loop, just no longer on a merely slow one.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (handler.CallCount < 3 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20));
+        }
+
         await sweep.StopAsync(CancellationToken.None);
 
-        Assert.True(handler.CallCount >= 3, $"expected several ticks in 150ms at a 20ms interval, got {handler.CallCount}");
+        Assert.True(handler.CallCount >= 3, $"expected several ticks within 5s at a 20ms interval, got {handler.CallCount}");
     }
 
     [Fact]
