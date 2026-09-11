@@ -2,6 +2,8 @@
 
 An onboarding-friendly index of every HTTP endpoint currently implemented in `EplFantasy.Api`, generated directly from the controllers in [`src/EplFantasy.Api/Controllers/`](src/EplFantasy.Api/Controllers/) — so it reflects what's actually built and runnable today, not just what's designed. For the authoritative, contract-level description of each endpoint (request/response schemas, error codes, examples), see the [OpenAPI Specification v1.0](docs/aidlc/05-api-specification/Fantasy%20EPL%20League%20Manager%20—%20OpenAPI%20Specification%20v1.0.yaml). There is no Swagger/OpenAPI UI wired up in the running app (no `/swagger` route) — this document and the YAML spec are the two ways to browse the surface without reading controller source directly.
 
+**Want to exercise these endpoints directly?** Import [`EplFantasy.postman_collection.json`](EplFantasy.postman_collection.json) into Postman — every endpoint below as a ready-to-run request, bearer-JWT auth wired at the collection level (`Register`/`Login` auto-populate the token), and `Create League`/`Create Season`/`Create Fantasy Team`/`Create Draft`/`Create Invitation` auto-save their new resource's id so the natural creation order chains straight through without manual copy-pasting. See that file's own collection description (visible in Postman after import) for what still needs filling in by hand.
+
 ## Conventions
 
 - **Base path:** every route is versioned under `/api/v1/...` (Architecture §9.1's URL-path versioning convention).
@@ -133,4 +135,4 @@ An onboarding-friendly index of every HTTP endpoint currently implemented in `Ep
 
 ---
 
-**Total: 71 endpoints** across 23 controllers, plus the anonymous health check. Counts will drift as new feature tasks land — regenerate this table from `src/EplFantasy.Api/Controllers/` rather than trusting it blindly once the codebase has moved on.
+**Total: 71 endpoints** across 23 controllers, plus the anonymous health check. Counts will drift as new feature tasks land — regenerate this table from `src/EplFantasy.Api/Controllers/` rather than trusting it blindly once the codebase has moved on. When you do, also update the matching entry in [`tools/generate_postman_collection.py`](tools/generate_postman_collection.py) and re-run it to keep the Postman collection in sync.

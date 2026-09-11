@@ -1,0 +1,2455 @@
+{
+  "info": {
+    "_postman_id": "35cd431b-3d54-464f-b559-96867918fe97",
+    "name": "Fantasy EPL League Manager API",
+    "description": "Every HTTP endpoint currently implemented in EplFantasy.Api, generated from API_ENDPOINTS.md / src/EplFantasy.Api/Controllers. Auth uses a bearer JWT set at the collection level via {{accessToken}} -- run 'Register' or 'Login' first and their test scripts will populate {{accessToken}}/{{refreshToken}} automatically for every other request. 'Create League', 'Create Season', 'Create Fantasy Team', 'Create Draft', and 'Create Invitation' likewise auto-save their new resource's id into {{leagueId}}/{{seasonId}}/{{fantasyTeamId}}/{{draftId}}/{{invitationId}} so the natural creation order (League -> Season -> Fantasy Team -> Draft) chains through the rest of the collection with no manual copy-pasting. Everything else (playerId, clubId, gameweekId, membershipId, etc.) needs to be filled in by hand from an earlier response, since this collection doesn't try to guess which specific player/club/gameweek you want to exercise.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5088",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "leagueId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "seasonId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fantasyTeamId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "membershipId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invitationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invitationToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "draftId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "gameweekId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "gameweekRosterId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scoreOverrideId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "replacementOpportunityId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "squadPlayerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "playerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "playerPerformanceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clubId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "matchId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "profileIconId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eplSeasonIdentifier",
+      "value": "2026-27",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "health"
+          ]
+        },
+        "description": "Confirms the API is running and its database connection is healthy. No auth required.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Identity & User",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Create a new user account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"jsmith\",\n  \"email\": \"jsmith@example.com\",\n  \"password\": \"Str0ngPassw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "    if (json.refreshToken) pm.collectionVariables.set('refreshToken', json.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate with username/password; returns an access token + refresh token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"jsmith\",\n  \"password\": \"Str0ngPassw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "    if (json.refreshToken) pm.collectionVariables.set('refreshToken', json.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchange a valid refresh token for a new access/refresh token pair (rotates the refresh token).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "    if (json.refreshToken) pm.collectionVariables.set('refreshToken', json.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revoke the caller's current refresh token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request Password Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password-reset/request",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password-reset",
+                "request"
+              ]
+            },
+            "description": "Request a password reset link for an email (always responds the same way, whether or not the email matches an account).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jsmith@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Password Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password-reset/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password-reset",
+                "confirm"
+              ]
+            },
+            "description": "Complete a password reset using the token from the request step.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resetToken\": \"{{resetToken}}\",\n  \"newPassword\": \"N3wStr0ngPassw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "Get the caller's own user profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Username",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "Change the caller's own username.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"jsmith2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Default Profile Icon",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/icon",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "icon"
+              ]
+            },
+            "description": "Set the caller's platform-wide default profile icon.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profileIconId\": \"{{profileIconId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Profile Icons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile-icons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile-icons"
+              ]
+            },
+            "description": "List the catalog of available profile icons.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "League & Season",
+      "item": [
+        {
+          "name": "Create League",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues"
+              ]
+            },
+            "description": "Create a new League (caller becomes its founding Administrator).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"The Gaffers League\",\n  \"description\": \"A friendly league among coworkers.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.leagueId) pm.collectionVariables.set('leagueId', json.leagueId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List My Leagues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues"
+              ]
+            },
+            "description": "List the caller's own League memberships."
+          },
+          "response": []
+        },
+        {
+          "name": "Get League",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}"
+              ]
+            },
+            "description": "Get a League's details."
+          },
+          "response": []
+        },
+        {
+          "name": "Update League",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}"
+              ]
+            },
+            "description": "Update a League's details.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"The Gaffers League\",\n  \"description\": \"Updated description.\",\n  \"status\": \"Active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "invitations"
+              ]
+            },
+            "description": "Invite a user to the League. `seasonId` is optional (omitted here) -- add it back to scope the invitation to one Season instead of the League as a whole.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destination\": \"invitee@example.com\",\n  \"channel\": \"Email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.invitationId) pm.collectionVariables.set('invitationId', json.invitationId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Invitations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "invitations"
+              ]
+            },
+            "description": "List a League's outstanding invitations."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Invitation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/invitations/{{invitationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "invitations",
+                "{{invitationId}}"
+              ]
+            },
+            "description": "Revoke an invitation."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invitations/{{invitationToken}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invitations",
+                "{{invitationToken}}",
+                "accept"
+              ]
+            },
+            "description": "Accept an invitation by its unguessable token (the token itself, not a membership check, is this endpoint's real security boundary). No endpoint returns this token -- it's delivered out-of-band (email/SMS); set {{invitationToken}} manually from wherever your environment surfaces it (e.g. a dev-only log line or direct DB read)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Memberships",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships"
+              ]
+            },
+            "description": "List a League's memberships."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Membership",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}"
+              ]
+            },
+            "description": "Get one membership."
+          },
+          "response": []
+        },
+        {
+          "name": "Leave League",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}/leave",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}",
+                "leave"
+              ]
+            },
+            "description": "Leave a League (self, or an Administrator removing another member)."
+          },
+          "response": []
+        },
+        {
+          "name": "Set League Icon Override",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}/icon",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}",
+                "icon"
+              ]
+            },
+            "description": "Set a League-specific profile icon override.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profileIconId\": \"{{profileIconId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Clear League Icon Override",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}/icon",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}",
+                "icon"
+              ]
+            },
+            "description": "Clear the League-specific icon override (falls back to the platform-wide default)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}/notification-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}",
+                "notification-preferences"
+              ]
+            },
+            "description": "Get this membership's notification preferences."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/memberships/{{membershipId}}/notification-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "memberships",
+                "{{membershipId}}",
+                "notification-preferences"
+              ]
+            },
+            "description": "Update this membership's notification preferences (array of {eventType, channel, enabled}).",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"eventType\": \"WeeklyScore\",\n    \"channel\": \"Email\",\n    \"enabled\": true\n  },\n  {\n    \"eventType\": \"WeeklyStandings\",\n    \"channel\": \"InApp\",\n    \"enabled\": true\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Season",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons"
+              ]
+            },
+            "description": "Create a new Season for a League. eplSeasonIdentifier must already exist as an epl_seasons row (seeded via tools/EplFantasy.SeedTool, or your own sync) -- it's a platform-level anchor, not something this call creates for you.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eplSeasonIdentifier\": \"{{eplSeasonIdentifier}}\",\n  \"startDate\": \"2026-08-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.seasonId) pm.collectionVariables.set('seasonId', json.seasonId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Seasons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List a League's Seasons (optionally filtered by status)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Season",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}"
+              ]
+            },
+            "description": "Get one Season."
+          },
+          "response": []
+        },
+        {
+          "name": "Get League Configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "configuration"
+              ]
+            },
+            "description": "Get a League's default configuration values."
+          },
+          "response": []
+        },
+        {
+          "name": "Update League Configuration",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "configuration"
+              ]
+            },
+            "description": "Update a League's default configuration values.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initialSquadSize\": 15,\n  \"weeklyRosterSize\": 11,\n  \"positionalMinimums\": {\n    \"gk\": 1,\n    \"def\": 3,\n    \"mid\": 2,\n    \"fwd\": 1\n  },\n  \"draftTimerSecondsByType\": {\n    \"initial\": 60,\n    \"secondary\": 60,\n    \"replacement\": 60\n  },\n  \"secondaryDraftSelectionsPerTeam\": 2,\n  \"secondaryDraftSchedulingOffsetDays\": 7,\n  \"gameweekRosterLockOffsetBeforeKickoffMinutes\": 60,\n  \"leaguePoints\": {\n    \"win\": 3,\n    \"draw\": 1,\n    \"loss\": 0\n  },\n  \"invitationExpirationDays\": 7,\n  \"replacementSelectionCap\": 5,\n  \"gameweekReminderLeadTimeHours\": 24,\n  \"tieBreakRulesetVersion\": \"v1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Season Configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "configuration"
+              ]
+            },
+            "description": "Get a Season's own (possibly overridden, possibly field-locked) configuration."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Season Configuration",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "configuration"
+              ]
+            },
+            "description": "Update a Season's configuration (rejected whole if any changed field is locked).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initialSquadSize\": 15,\n  \"weeklyRosterSize\": 11,\n  \"positionalMinimums\": {\n    \"gk\": 1,\n    \"def\": 3,\n    \"mid\": 2,\n    \"fwd\": 1\n  },\n  \"draftTimerSecondsByType\": {\n    \"initial\": 60,\n    \"secondary\": 60,\n    \"replacement\": 60\n  },\n  \"secondaryDraftSelectionsPerTeam\": 2,\n  \"secondaryDraftSchedulingOffsetDays\": 7,\n  \"gameweekRosterLockOffsetBeforeKickoffMinutes\": 60,\n  \"leaguePoints\": {\n    \"win\": 3,\n    \"draw\": 1,\n    \"loss\": 0\n  },\n  \"invitationExpirationDays\": 7,\n  \"replacementSelectionCap\": 5,\n  \"gameweekReminderLeadTimeHours\": 24,\n  \"tieBreakRulesetVersion\": \"v1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List League Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "messages"
+              ]
+            },
+            "description": "List a League's announcement messages."
+          },
+          "response": []
+        },
+        {
+          "name": "Create League Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "messages"
+              ]
+            },
+            "description": "Post a new League announcement message.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Welcome to the league! Draft night is Friday at 8pm.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated administrative-action audit log for a League."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fantasy Team",
+      "item": [
+        {
+          "name": "Create Fantasy Team",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams"
+              ]
+            },
+            "description": "Create the caller's FantasyTeam for a Season."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.fantasyTeamId) pm.collectionVariables.set('fantasyTeamId', json.fantasyTeamId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Fantasy Teams",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams"
+              ]
+            },
+            "description": "List every FantasyTeam in a Season."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Fantasy Team",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}"
+              ]
+            },
+            "description": "Get one FantasyTeam."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Squad",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}/squad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "squad"
+              ],
+              "query": [
+                {
+                  "key": "position",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a FantasyTeam's full squad, including released-player history (filterable/sortable by position/search/sort)."
+          },
+          "response": []
+        },
+        {
+          "name": "Declare Season-Ending Injury",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/squad-players/{{squadPlayerId}}/declare-season-ending-injury",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "squad-players",
+                "{{squadPlayerId}}",
+                "declare-season-ending-injury"
+              ]
+            },
+            "description": "Mark a squad player as season-ending-injured, granting a replacement opportunity.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Season-ending ACL injury.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Replacement Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}/replacement-opportunities",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "replacement-opportunities"
+              ]
+            },
+            "description": "List a FantasyTeam's unspent replacement opportunities."
+          },
+          "response": []
+        },
+        {
+          "name": "Spend Replacement Opportunity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}/replacement-opportunities/{{replacementOpportunityId}}/spend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "replacement-opportunities",
+                "{{replacementOpportunityId}}",
+                "spend"
+              ]
+            },
+            "description": "Spend a replacement opportunity to pick a new player.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerId\": \"{{playerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Season Goal Prediction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}/season-goal-prediction",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "season-goal-prediction"
+              ]
+            },
+            "description": "Get a FantasyTeam's season goal prediction."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Season Goal Prediction",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/fantasy-teams/{{fantasyTeamId}}/season-goal-prediction",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "season-goal-prediction"
+              ]
+            },
+            "description": "Submit/update a FantasyTeam's season goal prediction.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"predictedEplGoals\": 95\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Draft Management",
+      "item": [
+        {
+          "name": "Create Draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/drafts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "drafts"
+              ]
+            },
+            "description": "Start a Draft (only draftType: Initial is supported today). Requires at least 2 FantasyTeams already created for the Season (BR-302) -- a single-user run through this collection only creates one, so expect a 409 insufficient_fantasy_teams until a second user/FantasyTeam exists.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"draftType\": \"Initial\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.draftId) pm.collectionVariables.set('draftId', json.draftId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Drafts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/drafts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "drafts"
+              ],
+              "query": [
+                {
+                  "key": "draftType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List a Season's Drafts (optionally filtered by draftType)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Draft",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drafts/{{draftId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drafts",
+                "{{draftId}}"
+              ]
+            },
+            "description": "Get a Draft's current state (turn, timer, pending makeup picks, etc.)."
+          },
+          "response": []
+        },
+        {
+          "name": "Make Draft Pick",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drafts/{{draftId}}/picks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drafts",
+                "{{draftId}}",
+                "picks"
+              ]
+            },
+            "description": "Make the current pick (only the FantasyTeam currently on the clock may call this). Include an Idempotency-Key header for safe retries.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerId\": \"{{playerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Extend Draft Timer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drafts/{{draftId}}/timer/extend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drafts",
+                "{{draftId}}",
+                "timer",
+                "extend"
+              ]
+            },
+            "description": "Extend the current pick's timer deadline.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"additionalSeconds\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Draft Selections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drafts/{{draftId}}/selections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drafts",
+                "{{draftId}}",
+                "selections"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list of picks made so far, in order."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Draft Player Pool",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drafts/{{draftId}}/player-pool",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drafts",
+                "{{draftId}}",
+                "player-pool"
+              ],
+              "query": [
+                {
+                  "key": "position",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List undrafted players still available (filterable/sortable by position/search/sort)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Roster Management",
+      "item": [
+        {
+          "name": "Get Gameweek Roster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fantasy-teams/{{fantasyTeamId}}/gameweeks/{{gameweekId}}/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "gameweeks",
+                "{{gameweekId}}",
+                "roster"
+              ]
+            },
+            "description": "Get a FantasyTeam's roster for a Gameweek."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Gameweek Roster",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fantasy-teams/{{fantasyTeamId}}/gameweeks/{{gameweekId}}/roster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "gameweeks",
+                "{{gameweekId}}",
+                "roster"
+              ]
+            },
+            "description": "Submit/replace a FantasyTeam's roster for a Gameweek (rejected once locked). Supports an If-Match header carrying the row's xmin for optimistic concurrency.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerIds\": [\n    \"{{playerId}}\"\n  ],\n  \"captainPlayerId\": \"{{playerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Captain",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fantasy-teams/{{fantasyTeamId}}/gameweeks/{{gameweekId}}/roster/captain",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "gameweeks",
+                "{{gameweekId}}",
+                "roster",
+                "captain"
+              ]
+            },
+            "description": "Change the roster's designated Captain without touching the rest of the roster.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"captainPlayerId\": \"{{playerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Correct Roster (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/rosters/{{gameweekRosterId}}/correct",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "rosters",
+                "{{gameweekRosterId}}",
+                "correct"
+              ]
+            },
+            "description": "Administrator correction of an already-locked/scored roster's players and/or Captain.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerIds\": [\n    \"{{playerId}}\"\n  ],\n  \"captainPlayerId\": \"{{playerId}}\",\n  \"reason\": \"Correcting a data entry error.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Scoring",
+      "item": [
+        {
+          "name": "Get Gameweek Score",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fantasy-teams/{{fantasyTeamId}}/gameweeks/{{gameweekId}}/score",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fantasy-teams",
+                "{{fantasyTeamId}}",
+                "gameweeks",
+                "{{gameweekId}}",
+                "score"
+              ]
+            },
+            "description": "Get a FantasyTeam's calculated score for a Gameweek."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Score Override (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/score-overrides",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "score-overrides"
+              ]
+            },
+            "description": "Create a manual score override for a player's Gameweek performance.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"playerPerformanceId\": \"{{playerPerformanceId}}\",\n  \"leagueId\": \"{{leagueId}}\",\n  \"overrideValue\": {\n    \"goals\": 2\n  },\n  \"reason\": \"Official data correction.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Undo Score Override (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/score-overrides/{{scoreOverrideId}}/undo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "score-overrides",
+                "{{scoreOverrideId}}",
+                "undo"
+              ]
+            },
+            "description": "Undo (deactivate) an existing score override."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Competition",
+      "item": [
+        {
+          "name": "Get Schedule",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/schedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "gameweekId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get the head-to-head match schedule (optionally filtered to one Gameweek)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Match",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "matches",
+                "{{matchId}}"
+              ]
+            },
+            "description": "Get one head-to-head match's result."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Standings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leagues/{{leagueId}}/seasons/{{seasonId}}/standings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leagues",
+                "{{leagueId}}",
+                "seasons",
+                "{{seasonId}}",
+                "standings"
+              ],
+              "query": [
+                {
+                  "key": "asOfGameweekId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get the League's current (or as-of-a-past-Gameweek) standings table."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Player & EPL Reference Data",
+      "item": [
+        {
+          "name": "List Clubs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/clubs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "clubs"
+              ]
+            },
+            "description": "List all EPL clubs."
+          },
+          "response": []
+        },
+        {
+          "name": "List Players",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/players",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "players"
+              ],
+              "query": [
+                {
+                  "key": "clubId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "position",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List EPL players (filterable by clubId, position, search)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Player",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/players/{{playerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "players",
+                "{{playerId}}"
+              ]
+            },
+            "description": "Get one EPL player."
+          },
+          "response": []
+        },
+        {
+          "name": "List Gameweeks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/gameweeks?eplSeasonIdentifier={{eplSeasonIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "gameweeks"
+              ],
+              "query": [
+                {
+                  "key": "eplSeasonIdentifier",
+                  "value": "{{eplSeasonIdentifier}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "List Gameweeks for a given EPL season."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Gameweek Fixtures",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/gameweeks/{{gameweekId}}/fixtures",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "gameweeks",
+                "{{gameweekId}}",
+                "fixtures"
+              ]
+            },
+            "description": "List a Gameweek's fixtures."
+          },
+          "response": []
+        },
+        {
+          "name": "Get EPL Table",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/epl/seasons/{{eplSeasonIdentifier}}/table",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "epl",
+                "seasons",
+                "{{eplSeasonIdentifier}}",
+                "table"
+              ]
+            },
+            "description": "Get the real-world EPL league table for a season."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "System Administration",
+      "item": [
+        {
+          "name": "Get Rate Limit Configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/security/rate-limits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "security",
+                "rate-limits"
+              ]
+            },
+            "description": "View the current rate-limiting configuration."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Security Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/security/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "security",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated feed of recorded security events (rate-limit blocks, etc.)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get CSRF Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/security/csrf-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "security",
+                "csrf-status"
+              ]
+            },
+            "description": "Report whether cookie auth / CSRF middleware is active (informational; this API is bearer-JWT only today)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Retire Current User",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/users/me/retire",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "users",
+            "me",
+            "retire"
+          ]
+        },
+        "description": "Soft-delete (retire) the caller's own account; username becomes reusable. Deliberately the last request in this collection -- run it only when you're done exercising everything else as this user."
+      },
+      "response": []
+    }
+  ]
+}
