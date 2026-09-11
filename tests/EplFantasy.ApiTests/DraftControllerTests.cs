@@ -390,8 +390,12 @@ public class DraftControllerTests(EplFantasyApiFactory factory) : IClassFixture<
     /// DraftTurnOwner correctly returns 403 rather than replaying the earlier 201. That is a
     /// deliberate consequence of this endpoint's own x-authorization being a live, per-request
     /// object-level check (not a stable fact like "is the League Administrator"), not a defect —
-    /// the two concurrent requests below never cross that boundary, since neither can have advanced
-    /// the turn before the other is authorized.
+    /// the two concurrent requests below are dispatched to overlap that boundary, but under a slow
+    /// or loaded test runner the actual scheduling can still let one request's full pipeline
+    /// (including its commit) finish before the other's `[Authorize]` check ever runs, which
+    /// collapses this into the sequential case above and returns 403 for the loser exactly as that
+    /// case describes — a real, if uncommon, outcome of genuine (not simulated) concurrency, not a
+    /// bug in the endpoint, so it's accepted here alongside 201/409 rather than treated as a failure.
     /// </summary>
     [Fact]
     public async Task MakeDraftPick_with_a_repeated_Idempotency_Key_prevents_a_double_pick_on_a_genuinely_overlapping_retry()
@@ -418,8 +422,9 @@ public class DraftControllerTests(EplFantasyApiFactory factory) : IClassFixture<
 
         // Whichever mechanism actually resolved the overlap (the idempotency cache, or — if the
         // two requests didn't overlap tightly enough for that — ux_squad_players_owned itself,
-        // AP-009/AP-010's own guarantee) exactly one DraftSelection must exist either way.
-        Assert.All(responses, r => Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict));
+        // AP-009/AP-010's own guarantee, or DraftTurnOwner's own 403 per this test's own remarks
+        // above) exactly one DraftSelection must exist either way.
+        Assert.All(responses, r => Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict or HttpStatusCode.Forbidden));
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EplFantasyDbContext>();
