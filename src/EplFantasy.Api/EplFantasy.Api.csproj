@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EplFantasy.Infrastructure\EplFantasy.Infrastructure.csproj" />
+    <ProjectReference Include="..\EplFantasy.SharedKernel\EplFantasy.SharedKernel.csproj" />
+    <ProjectReference Include="..\EplFantasy.Identity\EplFantasy.Identity.csproj" />
+    <ProjectReference Include="..\EplFantasy.Leagues\EplFantasy.Leagues.csproj" />
+    <ProjectReference Include="..\EplFantasy.FantasyTeams\EplFantasy.FantasyTeams.csproj" />
+    <ProjectReference Include="..\EplFantasy.PlayerData\EplFantasy.PlayerData.csproj" />
+    <ProjectReference Include="..\EplFantasy.Drafts\EplFantasy.Drafts.csproj" />
+    <ProjectReference Include="..\EplFantasy.Rosters\EplFantasy.Rosters.csproj" />
+    <ProjectReference Include="..\EplFantasy.Scoring\EplFantasy.Scoring.csproj" />
+    <ProjectReference Include="..\EplFantasy.Competition\EplFantasy.Competition.csproj" />
+    <ProjectReference Include="..\EplFantasy.Administration\EplFantasy.Administration.csproj" />
+    <ProjectReference Include="..\EplFantasy.Notifications\EplFantasy.Notifications.csproj" />
+    <ProjectReference Include="..\EplFantasy.Reporting\EplFantasy.Reporting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

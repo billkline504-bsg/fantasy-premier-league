@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EplFantasy.SharedKernel\EplFantasy.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BR-285: "a strength-estimation mechanism rather than fixed composition rules" — zxcvbn is
+         the canonical implementation of exactly that idea, not a generic utility grabbed for
+         convenience. -->
+    <PackageReference Include="Zxcvbn-core" Version="7.0.92" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

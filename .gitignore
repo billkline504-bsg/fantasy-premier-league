@@ -1,0 +1,12 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+
+# IDE
+.vs/
+.vscode/
+*.suo
+
+# Test results
+[Tt]est[Rr]esult*/

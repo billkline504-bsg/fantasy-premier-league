@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # IT-F13 / Testing Strategy v1.0 §5: wired in ahead of any C# test project so the database layer
+  # stays regression-tested from day one. Mirrors the manual reproduction steps documented there —
+  # a disposable Postgres 16 container, migrations V001-V013 applied by hand (there is no EF Core
+  # migration history; the hand-written SQL in 06-database-migrations/ is the only source of truth),
+  # then the 33 db-tests/ assertions and the AP-009/AP-010 live concurrency race.
+  db-invariants:
+    name: Database invariants (db-tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start a disposable Postgres 16 container
+        run: docker run -d --name eplfantasy-ci -e POSTGRES_PASSWORD=test postgres:16
+
+      - name: Wait for Postgres to accept connections
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec eplfantasy-ci pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres is ready"
+              exit 0
+            fi
+            echo "Waiting for Postgres... (attempt $i/30)"
+            sleep 1
+          done
+          echo "Postgres never became ready" >&2
+          exit 1
+
+      - name: Create the migration target database
+        run: docker exec eplfantasy-ci psql -U postgres -c "CREATE DATABASE migtest;"
+
+      - name: Apply hand-written migrations V001-V013 in order
+        run: |
+          for f in docs/aidlc/06-database-migrations/migrations/V*.sql; do
+            echo "Applying $f"
+            docker exec -i eplfantasy-ci psql -U postgres -d migtest -v ON_ERROR_STOP=1 < "$f"
+          done
+
+      - name: Copy db-tests/ into the container
+        run: docker cp docs/aidlc/07-testing-strategy/db-tests/. eplfantasy-ci:/db-tests/
+
+      - name: Run the 33 database-invariant assertions (run_all.sql)
+        run: docker exec -w /db-tests eplfantasy-ci psql -U postgres -d migtest -v ON_ERROR_STOP=1 -f run_all.sql
+
+      - name: Run the AP-009/AP-010 live concurrency race
+        run: bash docs/aidlc/07-testing-strategy/db-tests/run_concurrency_test.sh eplfantasy-ci migtest
+
+      - name: Tear down the Postgres container
+        if: always()
+        run: docker rm -f eplfantasy-ci
+
+  # Builds EplFantasy.sln and runs all three test projects. IntegrationTests spins up its own
+  # per-test-class Postgres 16 container via Testcontainers (GitHub-hosted ubuntu runners ship
+  # Docker preinstalled), so no service container is declared for this job.
+  dotnet-tests:
+    name: .NET build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore EplFantasy.sln
+
+      - name: Build
+        run: dotnet build EplFantasy.sln --no-restore --configuration Release
+
+      - name: Test (UnitTests, IntegrationTests, ApiTests)
+        run: dotnet test EplFantasy.sln --no-build --configuration Release

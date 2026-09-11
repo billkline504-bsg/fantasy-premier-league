@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EplFantasy.SharedKernel\EplFantasy.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Infrastructure\EplFantasy.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.PlayerData\EplFantasy.PlayerData.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

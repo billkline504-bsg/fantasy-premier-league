@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EplFantasy.SharedKernel\EplFantasy.SharedKernel.csproj" />
+    <ProjectReference Include="..\EplFantasy.Identity\EplFantasy.Identity.csproj" />
+    <ProjectReference Include="..\EplFantasy.Leagues\EplFantasy.Leagues.csproj" />
+    <ProjectReference Include="..\EplFantasy.FantasyTeams\EplFantasy.FantasyTeams.csproj" />
+    <ProjectReference Include="..\EplFantasy.PlayerData\EplFantasy.PlayerData.csproj" />
+    <ProjectReference Include="..\EplFantasy.Drafts\EplFantasy.Drafts.csproj" />
+    <ProjectReference Include="..\EplFantasy.Rosters\EplFantasy.Rosters.csproj" />
+    <ProjectReference Include="..\EplFantasy.Scoring\EplFantasy.Scoring.csproj" />
+    <ProjectReference Include="..\EplFantasy.Competition\EplFantasy.Competition.csproj" />
+    <ProjectReference Include="..\EplFantasy.Administration\EplFantasy.Administration.csproj" />
+    <ProjectReference Include="..\EplFantasy.Notifications\EplFantasy.Notifications.csproj" />
+    <ProjectReference Include="..\EplFantasy.Reporting\EplFantasy.Reporting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.2" />
+  </ItemGroup>
+
+  <!--
+    IT-F06's authorization handlers need real ASP.NET Core types (HttpContext.Request.RouteValues,
+    AddAuthorizationBuilder) beyond what the standalone Microsoft.AspNetCore.Authorization/
+    Http.Abstractions NuGet packages expose (those only carry the abstract/interface surface, not
+    the concrete shared-framework implementation). This is Microsoft's own documented pattern for
+    a plain class library that needs deeper ASP.NET Core integration than a NuGet package alone
+    provides — Infrastructure is still not a Web SDK project, just one with framework access.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

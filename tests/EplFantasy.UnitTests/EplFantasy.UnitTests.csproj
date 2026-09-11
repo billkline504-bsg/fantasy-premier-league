@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.3" />
+    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EplFantasy.SharedKernel\EplFantasy.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Identity\EplFantasy.Identity.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Leagues\EplFantasy.Leagues.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.FantasyTeams\EplFantasy.FantasyTeams.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.PlayerData\EplFantasy.PlayerData.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Drafts\EplFantasy.Drafts.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Rosters\EplFantasy.Rosters.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Scoring\EplFantasy.Scoring.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Competition\EplFantasy.Competition.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Administration\EplFantasy.Administration.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Notifications\EplFantasy.Notifications.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Reporting\EplFantasy.Reporting.csproj" />
+    <ProjectReference Include="..\EplFantasy.TestSupport\EplFantasy.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Infrastructure\EplFantasy.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\EplFantasy.Api\EplFantasy.Api.csproj" />
+  </ItemGroup>
+
+</Project>

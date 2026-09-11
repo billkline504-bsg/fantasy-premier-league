@@ -1,0 +1,2476 @@
+openapi: 3.0.3
+info:
+  title: Fantasy EPL League Manager API
+  version: "1.0"
+  description: |
+    # Fantasy EPL League Manager
+    ## OpenAPI Specification — Version 1.0
+
+    **Document Status:** Baseline API Specification
+
+    **Inputs:**
+    - Architecture and Domain Model v1.15 (`Fantasy EPL League Manager — Architecture and Domain Model v1.15.md`) — Section 9's endpoint sketches (§9.2), the aggregate/entity model (§6), logical data architecture (§8), and cross-cutting API conventions (§9.3) that this document turns into concrete request/response DTOs and validation rules.
+    - Business Requirements Document v1.17 (`Fantasy EPL League Manager — Business Requirements Document v1.17.md`) — authoritative business rules, cited throughout by `BR-###`.
+    - Epic and Feature Backlog v1.10 (`Fantasy EPL League Manager — Epic and Feature Backlog v1.10.md`) — feature IDs (`F-###.#`) cited on each operation group to show which feature it serves and in what build-sequence position (Backlog §5).
+
+    **Purpose:** Turn Architecture §9's illustrative endpoint list into a complete, implementation-ready OpenAPI contract — every resource, request/response schema, validation rule, and error shape needed to start writing controllers and client code. This is the artifact Architecture §16 lists as recommended-next-artifact #3.
+
+    **Audience:** Backend developers implementing `EplFantasy.Api` controllers, any future client (web today, mobile per ADR-004 later), and the next AIDLC artifacts that depend on a stable contract (physical database migrations, testing strategy, implementation task breakdown).
+
+    **Scope:** This specification covers every endpoint needed for the P0 "MVP" build sequence (Backlog §5, positions 1–46) plus the P1/P2 endpoints for Corrections & Administration, Notifications, and Reporting (positions 47–54) that Architecture §9.2 already sketches. It does not cover mobile-specific concerns (ADR-004, deferred) or the notification delivery provider's own webhook/callback surface (Architecture §15, still an open infrastructure decision) — only the domain-facing preference/outbox endpoints that don't depend on that choice.
+
+    ## Conventions (Architecture §9.1/§9.3)
+
+    - REST over HTTPS only; JSON request/response bodies.
+    - URL-path versioning: every operation lives under `/api/v1`. A breaking change gets a new version prefix, never a silent change to `v1`.
+    - Authentication: a short-lived bearer JWT (`Authorization: Bearer <token>`) issued by `POST /api/v1/auth/login` and renewed via `POST /api/v1/auth/refresh`. The token carries only `sub` (UserId) — never roles or League Administrator status, since that is per-`LeagueMembership` and must be checked live (ADR-007), not cached in a token claim.
+    - Authorization: every operation that names a `leagueId`, `fantasyTeamId`, `draftId`, or `gameweekRosterId` performs an object-level check (caller is an active member, or the League Administrator, of that specific League) in addition to "is authenticated" — this is called out per-operation below as its `x-authorization` note, not left implicit.
+    - Validation: request bodies are validated server-side regardless of any client-side validation (BR-166, AP-003). Shape/format validation (this document's `required`/`minLength`/`pattern`/enum constraints) is necessary but not sufficient — domain-invariant validation (e.g., "exactly 15 players satisfying positional minimums," BR-279) happens in the domain layer and is surfaced through the same `ProblemDetails` error shape with a specific `errorCode`.
+    - Errors: every non-2xx response is a `ProblemDetails` object (`application/problem+json`) with a stable, machine-readable `errorCode` in addition to the human-readable `title`/`detail`.
+    - Idempotency: draft-pick submission and roster submission accept an optional `Idempotency-Key` header so a retried request after a client-side timeout cannot double-submit (BR-237).
+    - Concurrency: aggregates a member can edit from multiple devices before a hard lock (notably `GameweekRoster` before `Locked`) return and accept an `ETag`/`If-Match` pair for optimistic concurrency (Architecture §8.3). A mismatch returns `409 Conflict` with `errorCode: concurrency_conflict`.
+    - Pagination: list endpoints expected to grow without bound (`audit`, `draft selections history`) accept `limit`/`cursor` query parameters and return a `nextCursor` in the response envelope; list endpoints bounded by domain rules (a League's memberships, a Season's fixtures) return a plain array.
+
+    ## Version History
+
+    ### Version 1.0
+
+    Initial OpenAPI specification, generated from Architecture and Domain Model v1.15 and Epic and Feature Backlog v1.10. Covers Identity & Authentication, User Profile & FantasyTeam, League & Season Management (including League/Season configuration), EPL/FPL reference data, Draft (Initial/Secondary/Replacement), Gameweek Roster, Scoring, H2H Competition, Standings & Season Goal Prediction, Corrections & Administration (including System Administrator security endpoints), Notifications, and Reporting & History. Physical schema names/columns are Architecture §8's logical design, not yet reconciled against a physical migration (Architecture §16 item 4, not yet produced).
+
+servers:
+  - url: https://api.eplfantasy.example/api/v1
+    description: Production (placeholder host — Architecture ADR-005 hosting decision not yet made)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Identity
+    description: F-001.x, F-002.1 — accounts, authentication, retirement, default profile icon. Architecture §6.1.
+  - name: LeagueSeason
+    description: F-002.2–F-002.4, F-003.x — leagues, memberships, invitations, seasons, League/Season configuration, league messaging. Architecture §6.2.
+  - name: FantasyTeam
+    description: F-002.3, F-007.5 — FantasyTeam creation and the Squad View. Architecture §6.3.
+  - name: PlayerData
+    description: F-004.x — players, clubs, fixtures, gameweeks, EPL table. Architecture §6.10.
+  - name: Draft
+    description: F-005.x, F-006.x, F-011.2 — initial/secondary/replacement draft, replacement eligibility. Architecture §6.4.
+  - name: Roster
+    description: F-007.1–F-007.4 — weekly roster, captain, lock, administrator correction. Architecture §6.5.
+  - name: Scoring
+    description: F-008.x — official score ingestion (internal job, not exposed here), read access, and administrator overrides. Architecture §6.6.
+  - name: Competition
+    description: F-009.x, F-010.x — schedule, match results, standings, season goal prediction. Architecture §6.7.
+  - name: Administration
+    description: F-011.1, F-011.3 — audit log viewer, System Administrator security visibility. Architecture §6.8.
+  - name: Notifications
+    description: F-012.1 — per-LeagueMembership notification preferences. Architecture §6.9.
+
+paths:
+  # ─────────────────────────────────────────── Identity ───────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Identity]
+      operationId: registerUser
+      summary: Register a new User (F-001.1, BR-001–BR-004, BR-156, BR-158, BR-159, BR-285)
+      description: |
+        Creates a `User` (BR-002 immutable `UserId`) and its `UserProfile` (BR-005) with the default `ProfileIcon` (BR-006).
+        No authentication required. Public, rate-limited (BR-169).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Username already taken by an active User (BR-004).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /auth/login:
+    post:
+      tags: [Identity]
+      operationId: login
+      summary: Authenticate and obtain access/refresh tokens (BR-156, BR-159)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Identity]
+      operationId: refreshToken
+      summary: Exchange a refresh token for a new access token (Architecture §9.1)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: New token pair issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Identity]
+      operationId: logout
+      summary: Revoke the caller's current refresh token
+      # Added at IT-01 implementation time: revoking a *specific* refresh token
+      # (IAuthenticationService.RevokeRefreshTokenAsync) requires the caller to supply its value —
+      # this operation had no requestBody in the original v1.0 draft, an oversight caught only once
+      # a real controller had to call the service it always depended on.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '204':
+          description: Logged out.
+
+  /auth/password-reset/request:
+    post:
+      tags: [Identity]
+      operationId: requestPasswordReset
+      summary: Request a password reset link (F-001.2, BR-284)
+      description: Always returns 202 regardless of whether the email matches an account, to avoid revealing account existence.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: If the email matches an active account, a time-limited single-use reset link was sent (BR-284).
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [Identity]
+      operationId: confirmPasswordReset
+      summary: Complete a password reset using the emailed token (F-001.2, BR-284, BR-285)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetToken, newPassword]
+              properties:
+                resetToken: { type: string }
+                newPassword:
+                  type: string
+                  minLength: 12
+                  description: Minimum effective length of twelve characters, strength-evaluated (BR-285) rather than composition-ruled.
+      responses:
+        '204':
+          description: Password updated.
+        '400':
+          description: Reset token invalid/expired, or password fails strength evaluation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /users/me:
+    get:
+      tags: [Identity]
+      operationId: getCurrentUser
+      summary: Get the caller's own User/UserProfile (BR-005, BR-015 — private fields included, since this is self-access)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSelfDto'
+    put:
+      tags: [Identity]
+      operationId: updateUsername
+      summary: Change the caller's username (F-001.3, BR-003, BR-004, BR-265, BR-266, BR-270)
+      description: |
+        Opens a new `UsernameHistory` row and closes the previous one (BR-326) so historical screens keep resolving
+        the display name that was active at the time of each historical record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  $ref: '#/components/schemas/Username'
+      responses:
+        '200':
+          description: Username changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSelfDto'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Username already taken by another active User (BR-004).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /users/me/retire:
+    post:
+      tags: [Identity]
+      operationId: retireCurrentUser
+      summary: Retire (soft-delete) the caller's own account (F-001.4, BR-013, BR-014, BR-175)
+      description: Marks `User.Status = Retired`; never a physical delete. Historical records continue to resolve this User's identity (BR-014) via `UsernameHistory`.
+      responses:
+        '204':
+          description: Account retired.
+
+  /users/me/icon:
+    put:
+      tags: [Identity]
+      operationId: updateDefaultIcon
+      summary: Change the caller's global default profile icon (F-002.1, BR-006, BR-011)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profileIconId]
+              properties:
+                profileIconId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Default icon updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSelfDto'
+        '400':
+          description: profileIconId does not reference an active application-controlled ProfileIcon (BR-011).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /profile-icons:
+    get:
+      tags: [Identity]
+      operationId: listProfileIcons
+      summary: List the application-controlled icon catalog (BR-011)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileIcon'
+
+  /admin/users/{userId}/reactivate:
+    post:
+      tags: [Identity]
+      operationId: reactivateUser
+      summary: System Administrator reactivates a retired User (BR-300, BR-301)
+      description: |
+        System-Administrator-only (ADR-007) — not reachable through any League-facing screen or self-service flow.
+        If the User's prior username has since been taken by another active User, `newUsername` is required in the same request.
+      x-authorization: Caller must have `User.IsSystemAdministrator = true`.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newUsername:
+                  $ref: '#/components/schemas/Username'
+      responses:
+        '200':
+          description: User reactivated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSelfDto'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Prior username is taken and newUsername was not supplied.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  # ────────────────────────────────────── League & Season ──────────────────────────────────────
+  /leagues:
+    post:
+      tags: [LeagueSeason]
+      operationId: createLeague
+      summary: Create a League (F-003.1, BR-023, BR-024, BR-026)
+      description: The creator's `LeagueMembership` is created with `IsAdministrator = true` (BR-024).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeagueRequest'
+      responses:
+        '201':
+          description: League created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [LeagueSeason]
+      operationId: listMyLeagues
+      summary: List Leagues the caller has an active LeagueMembership in (BR-030, BR-031)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/League'
+
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    get:
+      tags: [LeagueSeason]
+      operationId: getLeague
+      summary: Get League details
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [LeagueSeason]
+      operationId: updateLeague
+      summary: Update League name/description/status (League Administrator only, BR-025)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeagueRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leagues/{leagueId}/configuration:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    get:
+      tags: [LeagueSeason]
+      operationId: getLeagueConfiguration
+      summary: Get the League-level default configuration (F-003.5, BR-290–BR-292)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueConfiguration'
+    put:
+      tags: [LeagueSeason]
+      operationId: updateLeagueConfiguration
+      summary: Update the League-level default configuration (League Administrator only, BR-292, BR-295)
+      description: Only affects Seasons created afterward, or fields not yet locked on an in-progress Season (BR-293/BR-294). Writes a `ConfigurationChanged` AdministrativeAction (BR-295).
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeagueConfiguration'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueConfiguration'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leagues/{leagueId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    post:
+      tags: [LeagueSeason]
+      operationId: createInvitation
+      summary: Issue a League invitation (F-003.2, BR-027–BR-029)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Invitation created; expires in `LeagueConfiguration.InvitationExpiration` (default 7 days, BR-029).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [LeagueSeason]
+      operationId: listInvitations
+      summary: List pending/expired invitations for a League (League Administrator only)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+
+  /leagues/{leagueId}/invitations/{invitationId}:
+    delete:
+      tags: [LeagueSeason]
+      operationId: revokeInvitation
+      summary: Revoke a pending invitation (League Administrator only)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Revoked.
+
+  /invitations/{token}/accept:
+    post:
+      tags: [LeagueSeason]
+      operationId: acceptInvitation
+      summary: Accept a League invitation (F-003.2, BR-027)
+      description: Creates or reactivates the caller's LeagueMembership. Fails with 410 if the token is expired (BR-029) or already used/revoked.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Membership created/reactivated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueMembership'
+        '410':
+          description: Invitation expired, already accepted, or revoked (BR-029).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /leagues/{leagueId}/memberships:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    get:
+      tags: [LeagueSeason]
+      operationId: listMemberships
+      summary: List a League's memberships (F-003.3)
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeagueMembership'
+
+  /leagues/{leagueId}/memberships/{membershipId}:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/membershipId'
+    get:
+      tags: [LeagueSeason]
+      operationId: getMembership
+      summary: Get one LeagueMembership
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueMembership'
+
+  /leagues/{leagueId}/memberships/{membershipId}/leave:
+    post:
+      tags: [LeagueSeason]
+      operationId: leaveLeague
+      summary: Leave a League (BR-020–BR-022)
+      x-authorization: Caller must own membershipId, or be the League Administrator removing another member.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - $ref: '#/components/parameters/membershipId'
+      responses:
+        '204':
+          description: Membership set to Left.
+        '409':
+          description: The sole League Administrator cannot leave without first transferring administration (BR-025, BR-283).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /leagues/{leagueId}/memberships/{membershipId}/icon:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/membershipId'
+    put:
+      tags: [LeagueSeason]
+      operationId: setLeagueIcon
+      summary: Set a League-specific icon override (F-002.2, BR-007–BR-009)
+      x-authorization: Caller must own membershipId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profileIconId]
+              properties:
+                profileIconId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueMembership'
+    delete:
+      tags: [LeagueSeason]
+      operationId: clearLeagueIcon
+      summary: Remove the League-specific icon override, reverting to the global default (F-002.2, BR-010)
+      x-authorization: Caller must own membershipId.
+      responses:
+        '204':
+          description: Reverted to default icon.
+
+  /leagues/{leagueId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    get:
+      tags: [LeagueSeason]
+      operationId: listLeagueMessages
+      summary: List League messages (F-003.6, BR-221–BR-223)
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeagueMessage'
+    post:
+      tags: [LeagueSeason]
+      operationId: createLeagueMessage
+      summary: Publish a League message (League Administrator only, BR-221)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                  description: User-supplied text; output-encoded on every render (BR-167), never interpreted as markup.
+      responses:
+        '201':
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueMessage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leagues/{leagueId}/seasons:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+    post:
+      tags: [LeagueSeason]
+      operationId: createSeason
+      summary: Create/reuse the League for a Season (F-003.4, BR-032, BR-033, BR-092)
+      description: |
+        Copies `LeagueConfiguration` into a new `SeasonConfiguration` (BR-292). If the League has a prior Season,
+        existing memberships are reinvited rather than automatically carried forward (BR-033).
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eplSeasonIdentifier, startDate]
+              properties:
+                eplSeasonIdentifier:
+                  type: string
+                  example: "2026/27"
+                startDate: { type: string, format: date }
+      responses:
+        '201':
+          description: Season created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [LeagueSeason]
+      operationId: listSeasons
+      summary: List a League's Seasons, current and historical (F-013.1, BR-032, BR-217, BR-296)
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SeasonStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Season'
+
+  /leagues/{leagueId}/seasons/{seasonId}:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+    get:
+      tags: [LeagueSeason]
+      operationId: getSeason
+      summary: Get Season details
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+
+  /leagues/{leagueId}/seasons/{seasonId}/configuration:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+    get:
+      tags: [LeagueSeason]
+      operationId: getSeasonConfiguration
+      summary: Get this Season's resolved configuration, including which fields are locked (F-003.5, BR-293, BR-294)
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonConfiguration'
+    put:
+      tags: [LeagueSeason]
+      operationId: updateSeasonConfiguration
+      summary: Override configuration fields for this Season, up until each field's lock point (League Administrator only, BR-291, BR-293)
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeasonConfiguration'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonConfiguration'
+        '409':
+          description: One or more submitted fields are already locked for this Season (BR-293).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  # ────────────────────────────────────────── FantasyTeam ──────────────────────────────────────────
+  /leagues/{leagueId}/seasons/{seasonId}/fantasy-teams:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+    post:
+      tags: [FantasyTeam]
+      operationId: createFantasyTeam
+      summary: Create the caller's FantasyTeam for this Season (F-002.3, BR-018–BR-020, BR-193)
+      x-authorization: Caller must be an active member of leagueId with no existing FantasyTeam for seasonId (BR-019/BR-193).
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FantasyTeam'
+        '409':
+          description: A FantasyTeam already exists for this (LeagueMembership, Season) pair (BR-193, Invariant 2).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    get:
+      tags: [FantasyTeam]
+      operationId: listFantasyTeams
+      summary: List a Season's FantasyTeams (backs Standings/Schedule/Draft-order displays)
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FantasyTeam'
+
+  /leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+      - $ref: '#/components/parameters/fantasyTeamId'
+    get:
+      tags: [FantasyTeam]
+      operationId: getFantasyTeam
+      summary: Get FantasyTeam details
+      x-authorization: Caller must be an active member of leagueId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FantasyTeam'
+
+  /leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/squad:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+      - $ref: '#/components/parameters/fantasyTeamId'
+    get:
+      tags: [FantasyTeam]
+      operationId: getSquad
+      summary: Squad View — full squad with position filter/search/sort, acquisition type, season stats, roster/replacement status (F-007.5, BR-209, BR-314–BR-320)
+      description: |
+        Composes SquadPlayer (acquisition type, BR-318), PlayerSeasonStatistics (season stats, BR-317), and current-Gameweek
+        RosterPlayer membership (roster indicator, BR-319) and ReplacementEligibleAt (BR-320). Shares its `position`/`search`/`sort`
+        parameter contract with the Draft Player Pool endpoint (`/drafts/{draftId}/player-pool`) — same filter/search/sort implementation,
+        different underlying row set (Architecture §6.3).
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/positionFilter'
+        - $ref: '#/components/parameters/searchQuery'
+        - $ref: '#/components/parameters/sortQuery'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SquadPlayerView'
+
+  # ───────────────────────────────────────── Player & EPL Data ─────────────────────────────────────────
+  /epl/clubs:
+    get:
+      tags: [PlayerData]
+      operationId: listClubs
+      summary: List EPL Clubs (F-004.1, BR-227)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Club'
+
+  /epl/players:
+    get:
+      tags: [PlayerData]
+      operationId: listPlayers
+      summary: List EPL Players, optionally filtered by club (F-004.1, BR-227, BR-228)
+      parameters:
+        - name: clubId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/positionFilter'
+        - $ref: '#/components/parameters/searchQuery'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Player'
+
+  /epl/players/{playerId}:
+    get:
+      tags: [PlayerData]
+      operationId: getPlayer
+      summary: Get one Player's reference data
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /epl/gameweeks:
+    get:
+      tags: [PlayerData]
+      operationId: listGameweeks
+      summary: List Gameweeks for an EPL Season (F-004.2, BR-092, BR-229, BR-230)
+      parameters:
+        - name: eplSeasonIdentifier
+          in: query
+          required: true
+          schema: { type: string, example: "2026/27" }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Gameweek'
+
+  /epl/gameweeks/{gameweekId}/fixtures:
+    get:
+      tags: [PlayerData]
+      operationId: getGameweekFixtures
+      summary: Fixtures for a Gameweek (F-004.6/F-007.1, BR-332, BR-333, BR-336)
+      description: Also the read reused verbatim by the Weekly Roster screen's Gameweek schedule display (BR-336).
+      parameters:
+        - name: gameweekId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fixture'
+
+  /epl/seasons/{eplSeasonId}/table:
+    get:
+      tags: [PlayerData]
+      operationId: getEplTable
+      summary: Real-world EPL league table for a Season (F-004.6, BR-329–BR-331)
+      description: Distinct from the Fantasy League's own Standings (`/leagues/{leagueId}/seasons/{seasonId}/standings`). Read-only; no Administrator-override path (BR-334).
+      parameters:
+        - name: eplSeasonId
+          in: path
+          required: true
+          schema: { type: string, example: "2026/27" }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClubStanding'
+
+  # ──────────────────────────────────────────── Draft ────────────────────────────────────────────
+  /leagues/{leagueId}/seasons/{seasonId}/drafts:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+    post:
+      tags: [Draft]
+      operationId: createDraft
+      summary: Schedule a Draft — Initial, Secondary, or Replacement (F-005.1/F-006.1, BR-053–BR-055, BR-069, BR-281)
+      description: |
+        For `draftType: Secondary`, the proposed `startTime` defaults to the transfer-window close date plus
+        `SeasonConfiguration.SecondaryDraftSchedulingOffsetDays`, advanced past any day with a scheduled EPL fixture
+        (BR-069/BR-281); the League Administrator may override it in the request.
+      x-authorization: Caller must be the League Administrator of leagueId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draftType]
+              properties:
+                draftType:
+                  $ref: '#/components/schemas/DraftType'
+                startTime: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Draft scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+        '409':
+          description: An Initial Draft was requested with fewer than two FantasyTeams participating (BR-302).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    get:
+      tags: [Draft]
+      operationId: listDrafts
+      summary: List Drafts for a Season
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - name: draftType
+          in: query
+          schema:
+            $ref: '#/components/schemas/DraftType'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Draft'
+
+  /drafts/{draftId}:
+    parameters:
+      - $ref: '#/components/parameters/draftId'
+    get:
+      tags: [Draft]
+      operationId: getDraft
+      summary: Get Draft state — order, current round/pick, timer deadline, pending makeup picks (F-005.5, BR-204, BR-205, BR-207, BR-208, BR-324)
+      x-authorization: Caller must be an active member of the Draft's League.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+
+  /drafts/{draftId}/start:
+    post:
+      tags: [Draft]
+      operationId: startDraft
+      summary: Start a scheduled Draft (League Administrator only)
+      x-authorization: Caller must be the League Administrator of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+      responses:
+        '200':
+          description: Draft is now InProgress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+        '409':
+          description: Fewer than two FantasyTeams participate (BR-302, Initial Draft only).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /drafts/{draftId}/pause:
+    post:
+      tags: [Draft]
+      operationId: pauseDraft
+      summary: Pause an in-progress Draft (League Administrator only, BR-025)
+      x-authorization: Caller must be the League Administrator of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+      responses:
+        '200':
+          description: Paused.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+
+  /drafts/{draftId}/resume:
+    post:
+      tags: [Draft]
+      operationId: resumeDraft
+      summary: Resume a paused Draft (League Administrator only)
+      x-authorization: Caller must be the League Administrator of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+      responses:
+        '200':
+          description: Resumed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+
+  /drafts/{draftId}/picks:
+    post:
+      tags: [Draft]
+      operationId: makeDraftPick
+      summary: Submit the current turn's player selection (F-005.2, BR-052, BR-059, BR-191, BR-192, AP-009, AP-010)
+      description: |
+        Atomic: the `DraftSelection` insert and the `SquadPlayer` creation happen in one transaction guarded by the
+        partial-unique-ownership index, so two concurrent picks for the same player cannot both succeed — the loser
+        receives `409` with `errorCode: player_already_owned`, not a raw constraint violation.
+      x-authorization: Caller must own the FantasyTeam whose turn it currently is.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [playerId]
+              properties:
+                playerId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Pick recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftSelection'
+        '409':
+          description: Player already owned by another FantasyTeam in this League/Season (BR-035, BR-191).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /drafts/{draftId}/selections:
+    get:
+      tags: [Draft]
+      operationId: listDraftSelections
+      summary: Draft pick history (F-005.5, BR-208)
+      x-authorization: Caller must be an active member of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftSelectionPage'
+
+  /drafts/{draftId}/timer/extend:
+    post:
+      tags: [Draft]
+      operationId: extendDraftTimer
+      summary: Extend the current pick's timer (F-005.3, BR-057, BR-058, BR-206, League Administrator only)
+      x-authorization: Caller must be the League Administrator of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [additionalSeconds]
+              properties:
+                additionalSeconds: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Timer extended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Draft'
+
+  /drafts/{draftId}/player-pool:
+    get:
+      tags: [Draft]
+      operationId: getDraftPlayerPool
+      summary: Remaining undrafted players with season-to-date statistics, filter/search/sort (F-005.5, BR-310–BR-313)
+      description: |
+        Applies identically to Initial, Secondary, and Replacement drafts, since all share the draft engine and this
+        read-model (Architecture §6.4). Before a Season's first Gameweek is scored, statistics resolve to zero rather
+        than being omitted, so the column layout stays identical across draft types.
+      x-authorization: Caller must be an active member of the Draft's League.
+      parameters:
+        - $ref: '#/components/parameters/draftId'
+        - $ref: '#/components/parameters/positionFilter'
+        - $ref: '#/components/parameters/searchQuery'
+        - $ref: '#/components/parameters/sortQuery'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DraftPlayerPoolEntry'
+
+  /leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/replacement-opportunities:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+      - $ref: '#/components/parameters/fantasyTeamId'
+    get:
+      tags: [Draft]
+      operationId: listReplacementOpportunities
+      summary: List a FantasyTeam's unspent replacement-selection opportunities (F-006.4, BR-063–BR-065, BR-287, BR-307)
+      description: An opportunity never expires on its own (BR-307) — it stays listed until spent via a Replacement-type draft pick.
+      x-authorization: Caller must own fantasyTeamId, or be the League Administrator.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReplacementOpportunity'
+
+  /leagues/{leagueId}/seasons/{seasonId}/squad-players/{squadPlayerId}/declare-season-ending-injury:
+    post:
+      tags: [Draft]
+      operationId: declareSeasonEndingInjury
+      summary: League Administrator declares a player season-ending-injured, granting replacement eligibility (F-011.2, BR-067, BR-068, BR-260)
+      description: |
+        Unlike an EPL-exit eligibility grant (which fires automatically off official data, BR-066, BR-308), this judgment
+        cannot be automated and is only ever Administrator-initiated. Writes an AdministrativeAction with
+        ActionType = SeasonEndingInjuryDeclared (Architecture §6.8).
+      x-authorization: Caller must be the League Administrator of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - $ref: '#/components/parameters/seasonId'
+        - name: squadPlayerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 1000 }
+      responses:
+        '200':
+          description: Eligibility granted; a ReplacementOpportunity is created for the owning FantasyTeam.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplacementOpportunity'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ──────────────────────────────────────────── Roster ────────────────────────────────────────────
+  /fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/roster:
+    parameters:
+      - $ref: '#/components/parameters/fantasyTeamId'
+      - $ref: '#/components/parameters/gameweekId'
+    get:
+      tags: [Roster]
+      operationId: getGameweekRoster
+      summary: Get a FantasyTeam's Gameweek roster, including per-player opponent and the Gameweek's fixture list (F-007.1, BR-336, BR-337)
+      x-authorization: Caller must own fantasyTeamId, or be an active member of its League (read-only for others).
+      responses:
+        '200':
+          description: OK
+          headers:
+            ETag:
+              description: Concurrency token for the subsequent PUT (Architecture §8.3).
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameweekRoster'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Roster]
+      operationId: submitGameweekRoster
+      summary: Submit exactly 15 players satisfying positional minimums (F-007.1, BR-037, BR-041, BR-196, BR-279, BR-291)
+      description: |
+        Rejected with `409 season_goal_prediction_required` if this is the FantasyTeam's first roster submission of the
+        Season and no SeasonGoalPrediction has been recorded yet (BR-299). Rejected with `400 invalid_roster_composition`
+        if the submission does not contain exactly `SeasonConfiguration.WeeklyRosterSize` players satisfying
+        `SeasonConfiguration.PositionalMinimums` (BR-279). Every `playerId` must be a currently-owned SquadPlayer of this
+        FantasyTeam (BR-194).
+      x-authorization: Caller must own fantasyTeamId.
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RosterSubmissionRequest'
+      responses:
+        '200':
+          description: Submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameweekRoster'
+        '400':
+          description: Roster does not satisfy size/positional-minimum invariants (BR-279).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Either a concurrency conflict (stale If-Match), or a missing required SeasonGoalPrediction (BR-299).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/roster/captain:
+    parameters:
+      - $ref: '#/components/parameters/fantasyTeamId'
+      - $ref: '#/components/parameters/gameweekId'
+    put:
+      tags: [Roster]
+      operationId: setCaptain
+      summary: Set the Gameweek roster's captain (F-007.2, BR-045, BR-046, BR-195, BR-212)
+      description: captainPlayerId must be one of the roster's 15 selected players (BR-046, Invariant 5).
+      x-authorization: Caller must own fantasyTeamId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [captainPlayerId]
+              properties:
+                captainPlayerId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Captain set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameweekRoster'
+        '400':
+          description: captainPlayerId is not part of this roster (BR-046).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Roster is already Locked (BR-040).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /admin/rosters/{gameweekRosterId}/correct:
+    post:
+      tags: [Roster]
+      operationId: correctRoster
+      summary: League Administrator makes an authorized post-deadline roster correction (F-007.4, BR-097–BR-099, BR-146–BR-149)
+      description: Writes an AdministrativeAction (ActionType = RosterCorrection) atomically with the change (BR-099, BR-149, AP-005).
+      x-authorization: Caller must be the League Administrator of the roster's League.
+      parameters:
+        - name: gameweekRosterId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RosterCorrectionRequest'
+      responses:
+        '200':
+          description: Corrected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameweekRoster'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ──────────────────────────────────────────── Scoring ────────────────────────────────────────────
+  /fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/score:
+    get:
+      tags: [Scoring]
+      operationId: getGameweekScore
+      summary: Get a FantasyTeam's calculated Gameweek score (F-008.1–F-008.4, BR-044, BR-047, BR-080–BR-091)
+      x-authorization: Caller must be an active member of the FantasyTeam's League.
+      parameters:
+        - $ref: '#/components/parameters/fantasyTeamId'
+        - $ref: '#/components/parameters/gameweekId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameweekScore'
+        '404':
+          description: Gameweek not yet scored (roster still Locked, not Scored).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /admin/score-overrides:
+    post:
+      tags: [Scoring]
+      operationId: createScoreOverride
+      summary: League Administrator overrides an official player statistic (F-008.5, BR-139–BR-145)
+      description: |
+        Precedence for any downstream read is Active ScoreOverride > Official PlayerPerformance > Application Calculation
+        (Invariant 12). Triggers a `ScoreRecalculated` cascade through GameweekScore → HeadToHeadMatch → LeagueStanding.
+        Writes an AdministrativeAction (ActionType = ScoreOverride) atomically (BR-149).
+      x-authorization: Caller must be the League Administrator of the override's League.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreOverrideRequest'
+      responses:
+        '201':
+          description: Override applied; recalculation cascade queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreOverride'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/score-overrides/{scoreOverrideId}/undo:
+    post:
+      tags: [Scoring]
+      operationId: undoScoreOverride
+      summary: League Administrator undoes a previously applied score override (F-008.5, BR-145)
+      description: Writes an AdministrativeAction (ActionType = ScoreOverrideUndo) and re-triggers the recalculation cascade.
+      x-authorization: Caller must be the League Administrator of the override's League.
+      parameters:
+        - name: scoreOverrideId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Undone.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreOverride'
+
+  # ────────────────────────────────────────── Competition ──────────────────────────────────────────
+  /leagues/{leagueId}/seasons/{seasonId}/schedule:
+    get:
+      tags: [Competition]
+      operationId: getSchedule
+      summary: H2H schedule and results (F-009.4, BR-218–BR-220)
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - $ref: '#/components/parameters/seasonId'
+        - name: gameweekId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HeadToHeadMatch'
+
+  /leagues/{leagueId}/seasons/{seasonId}/matches/{matchId}:
+    get:
+      tags: [Competition]
+      operationId: getMatch
+      summary: Get one H2H match's result detail (F-009.4, BR-111–BR-114)
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - $ref: '#/components/parameters/seasonId'
+        - name: matchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeadToHeadMatch'
+
+  /leagues/{leagueId}/seasons/{seasonId}/standings:
+    get:
+      tags: [Competition]
+      operationId: getStandings
+      summary: League standings, current or point-in-time (F-010.1, F-010.4, BR-118, BR-215–BR-217)
+      description: Tie-break ordering follows the ADR-008 pipeline (League Points → Fantasy Goal Difference → Fantasy Goals For → Head-to-Head League Points → Captain Points → Season Goal Prediction → Random fallback).
+      x-authorization: Caller must be an active member of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - $ref: '#/components/parameters/seasonId'
+        - name: asOfGameweekId
+          in: query
+          description: Omit for current standings; supply for a historical point-in-time view (BR-217).
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK, ordered by Position ascending.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeagueStanding'
+
+  /leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/season-goal-prediction:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/seasonId'
+      - $ref: '#/components/parameters/fantasyTeamId'
+    get:
+      tags: [Competition]
+      operationId: getSeasonGoalPrediction
+      summary: Get a FantasyTeam's Season Goal Prediction, if submitted (F-010.3, BR-126–BR-135)
+      x-authorization: Caller must own fantasyTeamId, or be an active member of its League.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonGoalPrediction'
+        '404':
+          description: Not yet submitted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    put:
+      tags: [Competition]
+      operationId: submitSeasonGoalPrediction
+      summary: Submit or update the Season Goal Prediction before it locks (F-010.3, BR-126–BR-128, BR-299)
+      description: Locks at Season start under normal submission (BR-127/BR-128), or at time of submission under the late-submission fallback (BR-299).
+      x-authorization: Caller must own fantasyTeamId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [predictedEplGoals]
+              properties:
+                predictedEplGoals: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonGoalPrediction'
+        '409':
+          description: Prediction is already locked (BR-127).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  # ─────────────────────────────────────── Corrections & Administration ───────────────────────────────────────
+  /leagues/{leagueId}/audit:
+    get:
+      tags: [Administration]
+      operationId: getAuditLog
+      summary: Administrative audit log, filterable (F-011.1, BR-177–BR-182, BR-321, BR-322)
+      description: A row with no resolvable FantasyTeamId (e.g., ActionType = ConfigurationChanged) is surfaced under the pseudo-value `"__league_settings__"` for the fantasyTeamId filter, per Architecture §6.8.
+      x-authorization: Caller must be the League Administrator of leagueId.
+      parameters:
+        - $ref: '#/components/parameters/leagueId'
+        - name: actionType
+          in: query
+          schema:
+            $ref: '#/components/schemas/AdminActionType'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: fantasyTeamId
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdministrativeActionPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/security/rate-limits:
+    get:
+      tags: [Administration]
+      operationId: getRateLimitConfiguration
+      summary: System Administrator views rate-limit configuration (BR-327)
+      x-authorization: Caller must have User.IsSystemAdministrator = true.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RateLimitRule'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/security/events:
+    get:
+      tags: [Administration]
+      operationId: getSecurityEvents
+      summary: System Administrator views rate-limit block events (F-011.3, BR-168–BR-170, BR-327)
+      x-authorization: Caller must have User.IsSystemAdministrator = true.
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityEventPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/security/csrf-status:
+    get:
+      tags: [Administration]
+      operationId: getCsrfStatus
+      summary: System Administrator views current CSRF protection posture (F-011.3, BR-328)
+      x-authorization: Caller must have User.IsSystemAdministrator = true.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ──────────────────────────────────────────── Notifications ────────────────────────────────────────────
+  /leagues/{leagueId}/memberships/{membershipId}/notification-preferences:
+    parameters:
+      - $ref: '#/components/parameters/leagueId'
+      - $ref: '#/components/parameters/membershipId'
+    get:
+      tags: [Notifications]
+      operationId: getNotificationPreferences
+      summary: Get a LeagueMembership's notification preferences (F-012.1, BR-150, BR-151, BR-155, BR-338, BR-339)
+      description: Preferences are keyed per LeagueMembership, not per User (BR-338) — a User with three League Memberships holds up to three independent rows per event/channel pair.
+      x-authorization: Caller must own membershipId.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationPreference'
+    put:
+      tags: [Notifications]
+      operationId: updateNotificationPreferences
+      summary: Update a LeagueMembership's notification preferences
+      x-authorization: Caller must own membershipId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/NotificationPreference'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationPreference'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    leagueId:
+      name: leagueId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    seasonId:
+      name: seasonId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    fantasyTeamId:
+      name: fantasyTeamId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    membershipId:
+      name: membershipId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    draftId:
+      name: draftId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    gameweekId:
+      name: gameweekId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    positionFilter:
+      name: position
+      in: query
+      description: Filter by position (BR-310, BR-314).
+      schema:
+        $ref: '#/components/schemas/Position'
+    searchQuery:
+      name: search
+      in: query
+      description: Case-insensitive substring match on player name (BR-311, BR-315).
+      schema: { type: string }
+    sortQuery:
+      name: sort
+      in: query
+      description: Any displayed column, e.g. "name", "club", "position", "fantasyPoints", "minutesPlayed", "gamesPlayed" (BR-312, BR-316). Prefix with "-" for descending.
+      schema: { type: string }
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Client-generated UUID so a retried request cannot double-submit (BR-237).
+      schema: { type: string, format: uuid }
+    ifMatch:
+      name: If-Match
+      in: header
+      description: ETag from the last GET, for optimistic concurrency (Architecture §8.3).
+      schema: { type: string }
+    limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  responses:
+    ValidationError:
+      description: Request failed shape/format validation (BR-166).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: Authenticated, but the caller fails the operation's object-level authorization check (BR-163, BR-254).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource does not exist, or exists but the caller has no visibility into it (never distinguished from a plain 404, to avoid leaking existence).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      description: RFC 7807-style error body (Architecture §9.3), extended with a stable machine-readable errorCode.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errorCode:
+          type: string
+          example: player_already_owned
+        correlationId: { type: string, description: Propagated into logs (BR-241). }
+
+    Username:
+      type: string
+      minLength: 3
+      maxLength: 24
+      pattern: '^[A-Za-z0-9_]+$'
+      description: Unique among active Users (BR-004); reused screens display it verbatim (BR-003). Length/charset are an implementation default, not yet a cited BR — confirm before locking a physical CHECK constraint.
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        email: { type: string, format: email }
+        password:
+          type: string
+          minLength: 12
+          description: Minimum effective length of twelve characters, strength-evaluated (BR-285).
+
+    LoginRequest:
+      type: object
+      required: [usernameOrEmail, password]
+      properties:
+        usernameOrEmail: { type: string }
+        password: { type: string }
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresInSeconds: { type: integer }
+        user:
+          $ref: '#/components/schemas/UserSelfDto'
+
+    UserStatus:
+      type: string
+      enum: [Active, Retired]
+
+    UserSelfDto:
+      type: object
+      description: Self-access DTO — includes private fields (BR-015 restricts league-facing APIs only, not the caller's own /users/me).
+      properties:
+        userId: { type: string, format: uuid }
+        username:
+          $ref: '#/components/schemas/Username'
+        email: { type: string, format: email }
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        defaultIconId: { type: string, format: uuid }
+        isSystemAdministrator: { type: boolean, description: "Never settable via any self-service API (BR-300)." }
+        createdAt: { type: string, format: date-time }
+
+    ProfileIcon:
+      type: object
+      properties:
+        profileIconId: { type: string, format: uuid }
+        name: { type: string }
+        assetIdentifier: { type: string, description: Server-controlled path (BR-011); never client-supplied. }
+        isActive: { type: boolean }
+        sortOrder: { type: integer }
+
+    LeagueStatus:
+      type: string
+      enum: [Active, Archived]
+
+    League:
+      type: object
+      properties:
+        leagueId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        status:
+          $ref: '#/components/schemas/LeagueStatus'
+        createdByMembershipId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+
+    CreateLeagueRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+
+    UpdateLeagueRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        status:
+          $ref: '#/components/schemas/LeagueStatus'
+
+    MembershipStatus:
+      type: string
+      enum: [Invited, Active, Left]
+
+    LeagueMembership:
+      type: object
+      properties:
+        leagueMembershipId: { type: string, format: uuid }
+        leagueId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        username:
+          $ref: '#/components/schemas/Username'
+        isAdministrator: { type: boolean }
+        leagueIconId: { type: string, format: uuid, nullable: true }
+        effectiveIconId: { type: string, format: uuid, description: "leagueIconId if set, else the User's default icon (BR-008)." }
+        status:
+          $ref: '#/components/schemas/MembershipStatus'
+        joinedAt: { type: string, format: date-time }
+        leftAt: { type: string, format: date-time, nullable: true }
+
+    InvitationStatus:
+      type: string
+      enum: [Pending, Accepted, Expired, Revoked]
+
+    Invitation:
+      type: object
+      properties:
+        invitationId: { type: string, format: uuid }
+        leagueId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid, nullable: true }
+        destination: { type: string, description: Email or phone number (BR-028). }
+        status:
+          $ref: '#/components/schemas/InvitationStatus'
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    CreateInvitationRequest:
+      type: object
+      required: [destination, channel]
+      properties:
+        destination: { type: string }
+        channel:
+          type: string
+          enum: [Email, Sms]
+        seasonId: { type: string, format: uuid, nullable: true }
+
+    SeasonStatus:
+      type: string
+      enum: [Setup, DraftInProgress, InSeason, Completed]
+
+    Season:
+      type: object
+      properties:
+        seasonId: { type: string, format: uuid }
+        leagueId: { type: string, format: uuid }
+        eplSeasonIdentifier: { type: string, example: "2026/27" }
+        status:
+          $ref: '#/components/schemas/SeasonStatus'
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true }
+
+    PositionalMinimums:
+      type: object
+      properties:
+        gk: { type: integer, minimum: 0, default: 1 }
+        def: { type: integer, minimum: 0, default: 3 }
+        mid: { type: integer, minimum: 0, default: 2 }
+        fwd: { type: integer, minimum: 0, default: 1 }
+
+    DraftTimerSecondsByType:
+      type: object
+      properties:
+        initial: { type: integer, minimum: 1, default: 300 }
+        secondary: { type: integer, minimum: 1, default: 300 }
+        replacement: { type: integer, minimum: 1, default: 300 }
+
+    LeaguePoints:
+      type: object
+      properties:
+        win: { type: integer, default: 3 }
+        draw: { type: integer, default: 1 }
+        loss: { type: integer, default: 0 }
+
+    LeagueConfiguration:
+      type: object
+      description: League-level default configuration (BR-290–BR-292). Mutable at any time; only affects future Seasons or not-yet-locked fields on an in-progress one (BR-293/BR-294).
+      properties:
+        leagueId: { type: string, format: uuid }
+        initialSquadSize: { type: integer, default: 25, description: "BR-034/BR-052/BR-197" }
+        weeklyRosterSize: { type: integer, default: 15, description: "BR-037/BR-196" }
+        positionalMinimums:
+          $ref: '#/components/schemas/PositionalMinimums'
+        draftTimerSecondsByType:
+          $ref: '#/components/schemas/DraftTimerSecondsByType'
+        secondaryDraftSelectionsPerTeam: { type: integer, default: 5, description: "BR-060" }
+        secondaryDraftSchedulingOffsetDays: { type: integer, default: 1, description: "BR-069/BR-281" }
+        gameweekRosterLockOffsetBeforeKickoffMinutes: { type: integer, default: 60, description: "BR-093" }
+        leaguePoints:
+          $ref: '#/components/schemas/LeaguePoints'
+        invitationExpirationDays: { type: integer, default: 7, description: "BR-029" }
+        replacementSelectionCap: { type: integer, nullable: true, default: null, description: "null = uncapped (BR-287)" }
+        gameweekReminderLeadTimeHours: { type: integer, default: 24, description: "BR-152/BR-309" }
+        tieBreakRulesetVersion: { type: string, description: "ADR-008 default ruleset identifier" }
+        updatedAt: { type: string, format: date-time }
+        updatedByMembershipId: { type: string, format: uuid }
+
+    SeasonConfiguration:
+      allOf:
+        - $ref: '#/components/schemas/LeagueConfiguration'
+        - type: object
+          properties:
+            seasonId: { type: string, format: uuid }
+            lockedFields:
+              type: array
+              items: { type: string }
+              description: Field names past their BR-291 "Locks At" point for this Season; further PUT attempts against them return 409 (BR-293).
+
+    LeagueMessage:
+      type: object
+      properties:
+        leagueMessageId: { type: string, format: uuid }
+        leagueId: { type: string, format: uuid }
+        authorMembershipId: { type: string, format: uuid }
+        body: { type: string }
+        publishedAt: { type: string, format: date-time }
+
+    FantasyTeamStatus:
+      type: string
+      enum: [Active, Withdrawn]
+
+    FantasyTeam:
+      type: object
+      properties:
+        fantasyTeamId: { type: string, format: uuid }
+        leagueMembershipId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        username:
+          $ref: '#/components/schemas/Username'
+        status:
+          $ref: '#/components/schemas/FantasyTeamStatus'
+        createdAt: { type: string, format: date-time }
+
+    Position:
+      type: string
+      enum: [Gk, Def, Mid, Fwd]
+
+    AcquisitionType:
+      type: string
+      enum: [InitialDraft, SecondaryDraft, Replacement]
+
+    SquadPlayerView:
+      type: object
+      description: One row of the Squad View read-model (F-007.5, BR-314–BR-320).
+      properties:
+        squadPlayerId: { type: string, format: uuid }
+        playerId: { type: string, format: uuid }
+        playerName: { type: string }
+        clubId: { type: string, format: uuid }
+        position:
+          $ref: '#/components/schemas/Position'
+        acquisitionType:
+          $ref: '#/components/schemas/AcquisitionType'
+        acquiredAt: { type: string, format: date-time }
+        isCurrentlyOwned: { type: boolean }
+        onCurrentGameweekRoster: { type: boolean, description: "BR-319 roster indicator." }
+        replacementEligibleAt: { type: string, format: date-time, nullable: true, description: "BR-320" }
+        seasonMinutesPlayed: { type: integer, description: "BR-317" }
+        seasonGamesPlayed: { type: integer }
+        seasonFantasyPoints: { type: integer }
+
+    Club:
+      type: object
+      properties:
+        clubId: { type: string, format: uuid }
+        name: { type: string }
+        shortName: { type: string }
+
+    Player:
+      type: object
+      properties:
+        playerId: { type: string, format: uuid }
+        eplPlayerId: { type: string, description: External identifier used for idempotent sync upserts (BR-232). }
+        name: { type: string }
+        position:
+          $ref: '#/components/schemas/Position'
+        currentClubId: { type: string, format: uuid, nullable: true, description: "Null if the player has exited the EPL (BR-066)." }
+
+    Gameweek:
+      type: object
+      properties:
+        gameweekId: { type: string, format: uuid }
+        eplSeasonIdentifier: { type: string }
+        number: { type: integer }
+        rosterLockDeadline: { type: string, format: date-time, description: "BR-093" }
+
+    Fixture:
+      type: object
+      properties:
+        fixtureId: { type: string, format: uuid }
+        gameweekId: { type: string, format: uuid }
+        homeClubId: { type: string, format: uuid }
+        awayClubId: { type: string, format: uuid }
+        kickoffTime: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [Scheduled, Postponed, InProgress, Completed, Abandoned]
+          description: "BR-100–BR-106"
+        homeGoals: { type: integer, nullable: true }
+        awayGoals: { type: integer, nullable: true }
+
+    ClubStanding:
+      type: object
+      description: Real-world EPL table (BR-329–BR-331); recomputed, never Administrator-editable (BR-334).
+      properties:
+        clubId: { type: string, format: uuid }
+        position: { type: integer }
+        played: { type: integer }
+        won: { type: integer }
+        drawn: { type: integer }
+        lost: { type: integer }
+        goalsFor: { type: integer }
+        goalsAgainst: { type: integer }
+        goalDifference: { type: integer }
+        points: { type: integer }
+
+    DraftType:
+      type: string
+      enum: [Initial, Secondary, Replacement]
+
+    DraftStatus:
+      type: string
+      enum: [Scheduled, InProgress, Paused, Completed]
+
+    Draft:
+      type: object
+      properties:
+        draftId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        draftType:
+          $ref: '#/components/schemas/DraftType'
+        status:
+          $ref: '#/components/schemas/DraftStatus'
+        draftOrder:
+          type: array
+          items: { type: string, format: uuid }
+          description: FantasyTeamId sequence — randomized for Initial (BR-054), standings-derived for Secondary (BR-056).
+        currentRound: { type: integer }
+        currentPickIndex: { type: integer }
+        timerSeconds: { type: integer, description: "BR-057" }
+        currentPickDeadline: { type: string, format: date-time, nullable: true }
+        pendingMakeupPicks:
+          type: array
+          items: { type: string, format: uuid }
+          description: FantasyTeamIds queued for a makeup pick after the final round (BR-282, BR-324).
+
+    DraftSelection:
+      type: object
+      properties:
+        draftSelectionId: { type: string, format: uuid }
+        draftId: { type: string, format: uuid }
+        fantasyTeamId: { type: string, format: uuid }
+        playerId: { type: string, format: uuid }
+        round: { type: integer }
+        pickNumber: { type: integer }
+        selectedAt: { type: string, format: date-time }
+        isMakeupPick: { type: boolean, description: "BR-282" }
+
+    DraftSelectionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DraftSelection'
+        nextCursor: { type: string, nullable: true }
+
+    DraftPlayerPoolEntry:
+      type: object
+      properties:
+        playerId: { type: string, format: uuid }
+        playerName: { type: string }
+        clubId: { type: string, format: uuid }
+        position:
+          $ref: '#/components/schemas/Position'
+        seasonMinutesPlayed: { type: integer, description: "BR-313" }
+        seasonGamesPlayed: { type: integer }
+        seasonFantasyPoints: { type: integer }
+
+    ReplacementOpportunity:
+      type: object
+      properties:
+        opportunityId: { type: string, format: uuid }
+        fantasyTeamId: { type: string, format: uuid }
+        sourcePlayerId: { type: string, format: uuid, description: "The player whose exit/injury generated this opportunity." }
+        grantedAt: { type: string, format: date-time }
+        grantReason:
+          type: string
+          enum: [EplExit, SeasonEndingInjury]
+        spentAt: { type: string, format: date-time, nullable: true }
+
+    RosterStatus:
+      type: string
+      enum: [Draft, Submitted, Locked, Scored]
+
+    SelectionRole:
+      type: string
+      enum: [StartingXI, Bench]
+
+    RosterPlayer:
+      type: object
+      properties:
+        playerId: { type: string, format: uuid }
+        isCaptain: { type: boolean }
+        selectionRole:
+          allOf:
+            - $ref: '#/components/schemas/SelectionRole'
+          description: "Computed post-scoring (BR-044); not chosen by the user."
+        opponentClubId: { type: string, format: uuid, nullable: true, description: "BR-337; null if this player's club has no fixture this Gameweek." }
+        opponentIsHome: { type: boolean, nullable: true }
+
+    GameweekRoster:
+      type: object
+      properties:
+        gameweekRosterId: { type: string, format: uuid }
+        fantasyTeamId: { type: string, format: uuid }
+        gameweekId: { type: string, format: uuid }
+        status:
+          $ref: '#/components/schemas/RosterStatus'
+        submittedAt: { type: string, format: date-time, nullable: true }
+        lockedAt: { type: string, format: date-time, nullable: true }
+        captainPlayerId: { type: string, format: uuid, nullable: true }
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/RosterPlayer'
+        gameweekFixtures:
+          type: array
+          items:
+            $ref: '#/components/schemas/Fixture'
+          description: "Same rows as GET /epl/gameweeks/{gameweekId}/fixtures (BR-336)."
+
+    RosterSubmissionRequest:
+      type: object
+      required: [playerIds]
+      properties:
+        playerIds:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 15
+          maxItems: 15
+          description: "Exactly SeasonConfiguration.WeeklyRosterSize players (default 15, BR-196), each a currently-owned SquadPlayer (BR-194)."
+        captainPlayerId: { type: string, format: uuid, description: "Optional at submission time; may instead be set via PUT .../roster/captain (BR-046)." }
+
+    RosterCorrectionRequest:
+      type: object
+      required: [reason]
+      properties:
+        playerIds:
+          type: array
+          items: { type: string, format: uuid }
+        captainPlayerId: { type: string, format: uuid }
+        reason: { type: string, minLength: 1, maxLength: 1000, description: "BR-098" }
+
+    GameweekScore:
+      type: object
+      properties:
+        gameweekScoreId: { type: string, format: uuid }
+        fantasyTeamId: { type: string, format: uuid }
+        gameweekId: { type: string, format: uuid }
+        fantasyPoints: { type: integer, description: "Sum over StartingXI + captain multiplier (BR-044/BR-047)." }
+        captainPoints: { type: integer }
+        fantasyGoalsFor: { type: integer, description: "BR-080" }
+        fantasyGoalsAgainst: { type: integer, description: "Truncated integer average (BR-086/BR-087)." }
+        fantasyGoalDifference: { type: integer, description: "BR-089" }
+        calculatedAt: { type: string, format: date-time }
+        recalculatedCount: { type: integer, description: "Incremented on every override-driven recompute (BR-148)." }
+
+    ScoreOverride:
+      type: object
+      properties:
+        scoreOverrideId: { type: string, format: uuid }
+        playerPerformanceId: { type: string, format: uuid }
+        administratorMembershipId: { type: string, format: uuid }
+        originalValue: { type: object, additionalProperties: true }
+        overrideValue: { type: object, additionalProperties: true }
+        reason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        undoneAt: { type: string, format: date-time, nullable: true }
+        isActive: { type: boolean }
+
+    ScoreOverrideRequest:
+      type: object
+      required: [playerPerformanceId, overrideValue]
+      properties:
+        playerPerformanceId: { type: string, format: uuid }
+        overrideValue:
+          type: object
+          additionalProperties: true
+          description: "Field(s) being overridden, e.g. { \"goals\": 2 } (BR-139–BR-145)."
+        reason: { type: string, maxLength: 1000 }
+
+    MatchResult:
+      type: string
+      enum: [HomeWin, AwayWin, Draw]
+
+    HeadToHeadMatch:
+      type: object
+      properties:
+        matchId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        gameweekId: { type: string, format: uuid }
+        homeFantasyTeamId: { type: string, format: uuid }
+        awayFantasyTeamId: { type: string, format: uuid }
+        homeScore: { type: integer, nullable: true }
+        awayScore: { type: integer, nullable: true }
+        result:
+          type: string
+          enum: [HomeWin, AwayWin, Draw]
+          nullable: true
+        leaguePointsHome: { type: integer, nullable: true }
+        leaguePointsAway: { type: integer, nullable: true }
+
+    LeagueStanding:
+      type: object
+      properties:
+        fantasyTeamId: { type: string, format: uuid }
+        leaguePoints: { type: integer }
+        played: { type: integer }
+        won: { type: integer }
+        drawn: { type: integer }
+        lost: { type: integer }
+        fantasyGoalsFor: { type: integer }
+        fantasyGoalsAgainst: { type: integer }
+        fantasyGoalDifference: { type: integer }
+        captainPointsTotal: { type: integer }
+        position: { type: integer, description: "Computed via the ADR-008 tie-break pipeline." }
+        asOfGameweekId: { type: string, format: uuid }
+
+    SeasonGoalPrediction:
+      type: object
+      properties:
+        predictionId: { type: string, format: uuid }
+        seasonId: { type: string, format: uuid }
+        fantasyTeamId: { type: string, format: uuid }
+        predictedEplGoals: { type: integer }
+        submittedAt: { type: string, format: date-time }
+        lockedAt: { type: string, format: date-time }
+        finalActualGoals: { type: integer, nullable: true }
+        finalAbsoluteDifference: { type: integer, nullable: true, description: "BR-131/BR-135, computed once at season end." }
+
+    AdminActionType:
+      type: string
+      enum:
+        - RosterCorrection
+        - ScoreOverride
+        - ScoreOverrideUndo
+        - ReplacementEligibilityGranted
+        - SeasonEndingInjuryDeclared
+        - DraftTimerExtended
+        - ConfigurationChanged
+        - Other
+
+    AdministrativeAction:
+      type: object
+      properties:
+        actionId: { type: string, format: uuid }
+        leagueId: { type: string, format: uuid }
+        actingMembershipId: { type: string, format: uuid, nullable: true, description: "Null means system-generated (e.g. automatic EPL-exit eligibility grant, BR-308) — render as \"System\"." }
+        actionType:
+          $ref: '#/components/schemas/AdminActionType'
+        targetEntityType: { type: string }
+        targetEntityId: { type: string, format: uuid }
+        beforeState: { type: object, additionalProperties: true }
+        afterState: { type: object, additionalProperties: true }
+        reason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AdministrativeActionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdministrativeAction'
+        nextCursor: { type: string, nullable: true }
+
+    RateLimitRule:
+      type: object
+      properties:
+        endpointPattern: { type: string }
+        windowSeconds: { type: integer }
+        maxRequests: { type: integer }
+
+    SecurityEvent:
+      type: object
+      properties:
+        securityEventId: { type: string, format: uuid }
+        eventType:
+          type: string
+          enum: [RateLimitBlocked]
+        endpoint: { type: string }
+        scope: { type: string, example: "IP 203.0.113.44 + username davecoach" }
+        detail: { type: string }
+        occurredAt: { type: string, format: date-time }
+
+    SecurityEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityEvent'
+        nextCursor: { type: string, nullable: true }
+
+    CsrfStatus:
+      type: object
+      properties:
+        cookieAuthenticationEnabled: { type: boolean }
+        csrfMiddlewareActive: { type: boolean }
+
+    NotificationEventType:
+      type: string
+      enum: [GameweekReminder, WeeklyScore, WeeklyStandings]
+
+    NotificationChannel:
+      type: string
+      enum: [Email, Sms]
+
+    NotificationPreference:
+      type: object
+      properties:
+        leagueMembershipId: { type: string, format: uuid }
+        eventType:
+          $ref: '#/components/schemas/NotificationEventType'
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        enabled: { type: boolean, default: false }
