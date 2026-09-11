@@ -1,5 +1,6 @@
 # Fantasy EPL League Manager
 
+[![CI](https://github.com/billkline504-bsg/fantasy-premier-league/actions/workflows/ci.yml/badge.svg)](https://github.com/billkline504-bsg/fantasy-premier-league/actions/workflows/ci.yml)
 [![License: All Rights Reserved](https://img.shields.io/badge/license-All%20Rights%20Reserved-red.svg)](LICENSE)
 [![Docs: BRD v1.17](https://img.shields.io/badge/docs-BRD%20v1.17-blue.svg)](docs/aidlc/README.md)
 
