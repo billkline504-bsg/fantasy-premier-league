@@ -7,15 +7,13 @@ or reshapes an endpoint, update the corresponding entry in FOLDERS and re-run:
 
     python tools/generate_postman_collection.py
 
-from the repo root (it writes EplFantasy.postman_collection.json next to itself's parent).
+The output path is derived from this file's location, so it always lands in the repo root no
+matter which directory you run it from.
 """
 
 import json
 import os
 import uuid
-
-def uid():
-    return str(uuid.uuid4())
 
 # ---------------------------------------------------------------------------
 # Endpoint data: (name, method, path, auth, body, query, description)
@@ -29,78 +27,78 @@ FOLDERS = [
     ("Identity & User", [
         ("Register", "POST", "/api/v1/auth/register", "noauth",
          {"username": "jsmith", "email": "jsmith@example.com", "password": "Str0ngPassw0rd!"},
-         None, "Create a new user account.", "auth"),
+         None, "Create a new user account."),
         ("Login", "POST", "/api/v1/auth/login", "noauth",
          {"usernameOrEmail": "jsmith", "password": "Str0ngPassw0rd!"},
-         None, "Authenticate with username/password; returns an access token + refresh token.", "auth"),
+         None, "Authenticate with username/password; returns an access token + refresh token."),
         ("Refresh Token", "POST", "/api/v1/auth/refresh", "noauth",
          {"refreshToken": "{{refreshToken}}"},
-         None, "Exchange a valid refresh token for a new access/refresh token pair (rotates the refresh token).", "auth"),
+         None, "Exchange a valid refresh token for a new access/refresh token pair (rotates the refresh token)."),
         ("Logout", "POST", "/api/v1/auth/logout", "bearer",
          {"refreshToken": "{{refreshToken}}"},
-         None, "Revoke the caller's current refresh token.", "auth"),
+         None, "Revoke the caller's current refresh token."),
         ("Request Password Reset", "POST", "/api/v1/auth/password-reset/request", "noauth",
          {"email": "jsmith@example.com"},
-         None, "Request a password reset link for an email (always responds the same way, whether or not the email matches an account).", "auth"),
+         None, "Request a password reset link for an email (always responds the same way, whether or not the email matches an account)."),
         ("Confirm Password Reset", "POST", "/api/v1/auth/password-reset/confirm", "noauth",
          {"resetToken": "{{resetToken}}", "newPassword": "N3wStr0ngPassw0rd!"},
-         None, "Complete a password reset using the token from the request step.", "auth"),
+         None, "Complete a password reset using the token from the request step."),
         ("Get Current User", "GET", "/api/v1/users/me", "bearer", None, None,
-         "Get the caller's own user profile.", "auth"),
+         "Get the caller's own user profile."),
         ("Update Username", "PUT", "/api/v1/users/me", "bearer",
-         {"username": "jsmith2"}, None, "Change the caller's own username.", "auth"),
+         {"username": "jsmith2"}, None, "Change the caller's own username."),
         ("Update Default Profile Icon", "PUT", "/api/v1/users/me/icon", "bearer",
          {"profileIconId": "{{profileIconId}}"}, None,
-         "Set the caller's platform-wide default profile icon.", "auth"),
+         "Set the caller's platform-wide default profile icon."),
         ("List Profile Icons", "GET", "/api/v1/profile-icons", "noauth", None, None,
-         "List the catalog of available profile icons.", "auth"),
+         "List the catalog of available profile icons."),
     ]),
     ("League & Season", [
         ("Create League", "POST", "/api/v1/leagues", "bearer",
          {"name": "The Gaffers League", "description": "A friendly league among coworkers."}, None,
-         "Create a new League (caller becomes its founding Administrator).", None),
+         "Create a new League (caller becomes its founding Administrator)."),
         ("List My Leagues", "GET", "/api/v1/leagues", "bearer", None, None,
-         "List the caller's own League memberships.", None),
+         "List the caller's own League memberships."),
         ("Get League", "GET", "/api/v1/leagues/{leagueId}", "bearer", None, None,
-         "Get a League's details.", None),
+         "Get a League's details."),
         ("Update League", "PUT", "/api/v1/leagues/{leagueId}", "bearer",
          {"name": "The Gaffers League", "description": "Updated description.", "status": "Active"}, None,
-         "Update a League's details.", None),
+         "Update a League's details."),
         ("Create Invitation", "POST", "/api/v1/leagues/{leagueId}/invitations", "bearer",
          {"destination": "invitee@example.com", "channel": "Email"}, None,
-         "Invite a user to the League. `seasonId` is optional (omitted here) -- add it back to scope the invitation to one Season instead of the League as a whole.", None),
+         "Invite a user to the League. `seasonId` is optional (omitted here) -- add it back to scope the invitation to one Season instead of the League as a whole."),
         ("List Invitations", "GET", "/api/v1/leagues/{leagueId}/invitations", "bearer", None, None,
-         "List a League's outstanding invitations.", None),
+         "List a League's outstanding invitations."),
         ("Revoke Invitation", "DELETE", "/api/v1/leagues/{leagueId}/invitations/{invitationId}", "bearer",
-         None, None, "Revoke an invitation.", None),
+         None, None, "Revoke an invitation."),
         ("Accept Invitation", "POST", "/api/v1/invitations/{invitationToken}/accept", "bearer",
-         None, None, "Accept an invitation by its unguessable token (the token itself, not a membership check, is this endpoint's real security boundary). No endpoint returns this token -- it's delivered out-of-band (email/SMS); set {{invitationToken}} manually from wherever your environment surfaces it (e.g. a dev-only log line or direct DB read).", None),
+         None, None, "Accept an invitation by its unguessable token (the token itself, not a membership check, is this endpoint's real security boundary). No endpoint returns this token -- it's delivered out-of-band (email/SMS); set {{invitationToken}} manually from wherever your environment surfaces it (e.g. a dev-only log line or direct DB read)."),
         ("List Memberships", "GET", "/api/v1/leagues/{leagueId}/memberships", "bearer", None, None,
-         "List a League's memberships.", None),
+         "List a League's memberships."),
         ("Get Membership", "GET", "/api/v1/leagues/{leagueId}/memberships/{membershipId}", "bearer", None, None,
-         "Get one membership.", None),
+         "Get one membership."),
         ("Leave League", "POST", "/api/v1/leagues/{leagueId}/memberships/{membershipId}/leave", "bearer",
-         None, None, "Leave a League (self, or an Administrator removing another member).", None),
+         None, None, "Leave a League (self, or an Administrator removing another member)."),
         ("Set League Icon Override", "PUT", "/api/v1/leagues/{leagueId}/memberships/{membershipId}/icon", "bearer",
          {"profileIconId": "{{profileIconId}}"}, None,
-         "Set a League-specific profile icon override.", None),
+         "Set a League-specific profile icon override."),
         ("Clear League Icon Override", "DELETE", "/api/v1/leagues/{leagueId}/memberships/{membershipId}/icon", "bearer",
-         None, None, "Clear the League-specific icon override (falls back to the platform-wide default).", None),
+         None, None, "Clear the League-specific icon override (falls back to the platform-wide default)."),
         ("Get Notification Preferences", "GET", "/api/v1/leagues/{leagueId}/memberships/{membershipId}/notification-preferences", "bearer",
-         None, None, "Get this membership's notification preferences.", None),
+         None, None, "Get this membership's notification preferences."),
         ("Update Notification Preferences", "PUT", "/api/v1/leagues/{leagueId}/memberships/{membershipId}/notification-preferences", "bearer",
          [{"eventType": "WeeklyScore", "channel": "Email", "enabled": True},
           {"eventType": "WeeklyStandings", "channel": "InApp", "enabled": True}], None,
-         "Update this membership's notification preferences (array of {eventType, channel, enabled}).", None),
+         "Update this membership's notification preferences (array of {eventType, channel, enabled})."),
         ("Create Season", "POST", "/api/v1/leagues/{leagueId}/seasons", "bearer",
          {"eplSeasonIdentifier": "{{eplSeasonIdentifier}}", "startDate": "2026-08-15"}, None,
-         "Create a new Season for a League. eplSeasonIdentifier must already exist as an epl_seasons row (seeded via tools/EplFantasy.SeedTool, or your own sync) -- it's a platform-level anchor, not something this call creates for you.", None),
+         "Create a new Season for a League. eplSeasonIdentifier must already exist as an epl_seasons row (seeded via tools/EplFantasy.SeedTool, or your own sync) -- it's a platform-level anchor, not something this call creates for you."),
         ("List Seasons", "GET", "/api/v1/leagues/{leagueId}/seasons", "bearer", None,
-         [("status", "", True)], "List a League's Seasons (optionally filtered by status).", None),
+         [("status", "", True)], "List a League's Seasons (optionally filtered by status)."),
         ("Get Season", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}", "bearer", None, None,
-         "Get one Season.", None),
+         "Get one Season."),
         ("Get League Configuration", "GET", "/api/v1/leagues/{leagueId}/configuration", "bearer", None, None,
-         "Get a League's default configuration values.", None),
+         "Get a League's default configuration values."),
         ("Update League Configuration", "PUT", "/api/v1/leagues/{leagueId}/configuration", "bearer",
          {
              "initialSquadSize": 15, "weeklyRosterSize": 11,
@@ -111,9 +109,9 @@ FOLDERS = [
              "leaguePoints": {"win": 3, "draw": 1, "loss": 0},
              "invitationExpirationDays": 7, "replacementSelectionCap": 5,
              "gameweekReminderLeadTimeHours": 24, "tieBreakRulesetVersion": "v1",
-         }, None, "Update a League's default configuration values.", None),
+         }, None, "Update a League's default configuration values."),
         ("Get Season Configuration", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/configuration", "bearer",
-         None, None, "Get a Season's own (possibly overridden, possibly field-locked) configuration.", None),
+         None, None, "Get a Season's own (possibly overridden, possibly field-locked) configuration."),
         ("Update Season Configuration", "PUT", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/configuration", "bearer",
          {
              "initialSquadSize": 15, "weeklyRosterSize": 11,
@@ -124,112 +122,112 @@ FOLDERS = [
              "leaguePoints": {"win": 3, "draw": 1, "loss": 0},
              "invitationExpirationDays": 7, "replacementSelectionCap": 5,
              "gameweekReminderLeadTimeHours": 24, "tieBreakRulesetVersion": "v1",
-         }, None, "Update a Season's configuration (rejected whole if any changed field is locked).", None),
+         }, None, "Update a Season's configuration (rejected whole if any changed field is locked)."),
         ("List League Messages", "GET", "/api/v1/leagues/{leagueId}/messages", "bearer", None, None,
-         "List a League's announcement messages.", None),
+         "List a League's announcement messages."),
         ("Create League Message", "POST", "/api/v1/leagues/{leagueId}/messages", "bearer",
          {"body": "Welcome to the league! Draft night is Friday at 8pm."}, None,
-         "Post a new League announcement message.", None),
+         "Post a new League announcement message."),
         ("Get Audit Log", "GET", "/api/v1/leagues/{leagueId}/audit", "bearer", None,
          [("limit", "50", True), ("cursor", "", True)],
-         "Paginated administrative-action audit log for a League.", None),
+         "Paginated administrative-action audit log for a League."),
     ]),
     ("Fantasy Team", [
         ("Create Fantasy Team", "POST", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams", "bearer",
-         None, None, "Create the caller's FantasyTeam for a Season.", None),
+         None, None, "Create the caller's FantasyTeam for a Season."),
         ("List Fantasy Teams", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams", "bearer",
-         None, None, "List every FantasyTeam in a Season.", None),
+         None, None, "List every FantasyTeam in a Season."),
         ("Get Fantasy Team", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}", "bearer",
-         None, None, "Get one FantasyTeam.", None),
+         None, None, "Get one FantasyTeam."),
         ("Get Squad", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/squad", "bearer",
          None, [("position", "", True), ("search", "", True), ("sort", "", True)],
-         "Get a FantasyTeam's full squad, including released-player history (filterable/sortable by position/search/sort).", None),
+         "Get a FantasyTeam's full squad, including released-player history (filterable/sortable by position/search/sort)."),
         ("Declare Season-Ending Injury", "POST", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/squad-players/{squadPlayerId}/declare-season-ending-injury", "bearer",
          {"reason": "Season-ending ACL injury."}, None,
-         "Mark a squad player as season-ending-injured, granting a replacement opportunity.", None),
+         "Mark a squad player as season-ending-injured, granting a replacement opportunity."),
         ("List Replacement Opportunities", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/replacement-opportunities", "bearer",
-         None, None, "List a FantasyTeam's unspent replacement opportunities.", None),
+         None, None, "List a FantasyTeam's unspent replacement opportunities."),
         ("Spend Replacement Opportunity", "POST", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/replacement-opportunities/{replacementOpportunityId}/spend", "bearer",
-         {"playerId": "{{playerId}}"}, None, "Spend a replacement opportunity to pick a new player.", None),
+         {"playerId": "{{playerId}}"}, None, "Spend a replacement opportunity to pick a new player."),
         ("Get Season Goal Prediction", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/season-goal-prediction", "bearer",
-         None, None, "Get a FantasyTeam's season goal prediction.", None),
+         None, None, "Get a FantasyTeam's season goal prediction."),
         ("Submit Season Goal Prediction", "PUT", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/fantasy-teams/{fantasyTeamId}/season-goal-prediction", "bearer",
-         {"predictedEplGoals": 95}, None, "Submit/update a FantasyTeam's season goal prediction.", None),
+         {"predictedEplGoals": 95}, None, "Submit/update a FantasyTeam's season goal prediction."),
     ]),
     ("Draft Management", [
         ("Create Draft", "POST", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/drafts", "bearer",
          {"draftType": "Initial"}, None,
-         "Start a Draft (only draftType: Initial is supported today). Requires at least 2 FantasyTeams already created for the Season (BR-302) -- a single-user run through this collection only creates one, so expect a 409 insufficient_fantasy_teams until a second user/FantasyTeam exists.", None),
+         "Start a Draft (only draftType: Initial is supported today). Requires at least 2 FantasyTeams already created for the Season (BR-302) -- a single-user run through this collection only creates one, so expect a 409 insufficient_fantasy_teams until a second user/FantasyTeam exists."),
         ("List Drafts", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/drafts", "bearer",
-         None, [("draftType", "", True)], "List a Season's Drafts (optionally filtered by draftType).", None),
+         None, [("draftType", "", True)], "List a Season's Drafts (optionally filtered by draftType)."),
         ("Get Draft", "GET", "/api/v1/drafts/{draftId}", "bearer", None, None,
-         "Get a Draft's current state (turn, timer, pending makeup picks, etc.).", None),
+         "Get a Draft's current state (turn, timer, pending makeup picks, etc.)."),
         ("Make Draft Pick", "POST", "/api/v1/drafts/{draftId}/picks", "bearer",
          {"playerId": "{{playerId}}"}, None,
-         "Make the current pick (only the FantasyTeam currently on the clock may call this). Include an Idempotency-Key header for safe retries.", None),
+         "Make the current pick (only the FantasyTeam currently on the clock may call this). Include an Idempotency-Key header for safe retries."),
         ("Extend Draft Timer", "POST", "/api/v1/drafts/{draftId}/timer/extend", "bearer",
-         {"additionalSeconds": 60}, None, "Extend the current pick's timer deadline.", None),
+         {"additionalSeconds": 60}, None, "Extend the current pick's timer deadline."),
         ("List Draft Selections", "GET", "/api/v1/drafts/{draftId}/selections", "bearer",
          None, [("limit", "50", True), ("cursor", "", True)],
-         "Paginated list of picks made so far, in order.", None),
+         "Paginated list of picks made so far, in order."),
         ("Get Draft Player Pool", "GET", "/api/v1/drafts/{draftId}/player-pool", "bearer",
          None, [("position", "", True), ("search", "", True), ("sort", "", True)],
-         "List undrafted players still available (filterable/sortable by position/search/sort).", None),
+         "List undrafted players still available (filterable/sortable by position/search/sort)."),
     ]),
     ("Roster Management", [
         ("Get Gameweek Roster", "GET", "/api/v1/fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/roster", "bearer",
-         None, None, "Get a FantasyTeam's roster for a Gameweek.", None),
+         None, None, "Get a FantasyTeam's roster for a Gameweek."),
         ("Submit Gameweek Roster", "PUT", "/api/v1/fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/roster", "bearer",
          {"playerIds": ["{{playerId}}"], "captainPlayerId": "{{playerId}}"}, None,
-         "Submit/replace a FantasyTeam's roster for a Gameweek (rejected once locked). Supports an If-Match header carrying the row's xmin for optimistic concurrency.", None),
+         "Submit/replace a FantasyTeam's roster for a Gameweek (rejected once locked). Supports an If-Match header carrying the row's xmin for optimistic concurrency."),
         ("Set Captain", "PUT", "/api/v1/fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/roster/captain", "bearer",
          {"captainPlayerId": "{{playerId}}"}, None,
-         "Change the roster's designated Captain without touching the rest of the roster.", None),
+         "Change the roster's designated Captain without touching the rest of the roster."),
         ("Correct Roster (Admin)", "POST", "/api/v1/admin/rosters/{gameweekRosterId}/correct", "bearer",
          {"playerIds": ["{{playerId}}"], "captainPlayerId": "{{playerId}}", "reason": "Correcting a data entry error."}, None,
-         "Administrator correction of an already-locked/scored roster's players and/or Captain.", None),
+         "Administrator correction of an already-locked/scored roster's players and/or Captain."),
     ]),
     ("Scoring", [
         ("Get Gameweek Score", "GET", "/api/v1/fantasy-teams/{fantasyTeamId}/gameweeks/{gameweekId}/score", "bearer",
-         None, None, "Get a FantasyTeam's calculated score for a Gameweek.", None),
+         None, None, "Get a FantasyTeam's calculated score for a Gameweek."),
         ("Create Score Override (Admin)", "POST", "/api/v1/admin/score-overrides", "bearer",
          {"playerPerformanceId": "{{playerPerformanceId}}", "leagueId": "{{leagueId}}",
           "overrideValue": {"goals": 2}, "reason": "Official data correction."}, None,
-         "Create a manual score override for a player's Gameweek performance.", None),
+         "Create a manual score override for a player's Gameweek performance."),
         ("Undo Score Override (Admin)", "POST", "/api/v1/admin/score-overrides/{scoreOverrideId}/undo", "bearer",
-         None, None, "Undo (deactivate) an existing score override.", None),
+         None, None, "Undo (deactivate) an existing score override."),
     ]),
     ("Competition", [
         ("Get Schedule", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/schedule", "bearer",
-         None, [("gameweekId", "", True)], "Get the head-to-head match schedule (optionally filtered to one Gameweek).", None),
+         None, [("gameweekId", "", True)], "Get the head-to-head match schedule (optionally filtered to one Gameweek)."),
         ("Get Match", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/matches/{matchId}", "bearer",
-         None, None, "Get one head-to-head match's result.", None),
+         None, None, "Get one head-to-head match's result."),
         ("Get Standings", "GET", "/api/v1/leagues/{leagueId}/seasons/{seasonId}/standings", "bearer",
-         None, [("asOfGameweekId", "", True)], "Get the League's current (or as-of-a-past-Gameweek) standings table.", None),
+         None, [("asOfGameweekId", "", True)], "Get the League's current (or as-of-a-past-Gameweek) standings table."),
     ]),
     ("Player & EPL Reference Data", [
-        ("List Clubs", "GET", "/api/v1/epl/clubs", "bearer", None, None, "List all EPL clubs.", None),
+        ("List Clubs", "GET", "/api/v1/epl/clubs", "bearer", None, None, "List all EPL clubs."),
         ("List Players", "GET", "/api/v1/epl/players", "bearer", None,
          [("clubId", "", True), ("position", "", True), ("search", "", True)],
-         "List EPL players (filterable by clubId, position, search).", None),
+         "List EPL players (filterable by clubId, position, search)."),
         ("Get Player", "GET", "/api/v1/epl/players/{playerId}", "bearer", None, None,
-         "Get one EPL player.", None),
+         "Get one EPL player."),
         ("List Gameweeks", "GET", "/api/v1/epl/gameweeks", "bearer", None,
          [("eplSeasonIdentifier", "{{eplSeasonIdentifier}}", False)],
-         "List Gameweeks for a given EPL season.", None),
+         "List Gameweeks for a given EPL season."),
         ("Get Gameweek Fixtures", "GET", "/api/v1/epl/gameweeks/{gameweekId}/fixtures", "bearer", None, None,
-         "List a Gameweek's fixtures.", None),
+         "List a Gameweek's fixtures."),
         ("Get EPL Table", "GET", "/api/v1/epl/seasons/{eplSeasonIdentifier}/table", "bearer", None, None,
-         "Get the real-world EPL league table for a season.", None),
+         "Get the real-world EPL league table for a season."),
     ]),
     ("System Administration", [
         ("Get Rate Limit Configuration", "GET", "/api/v1/admin/security/rate-limits", "bearer", None, None,
-         "View the current rate-limiting configuration.", None),
+         "View the current rate-limiting configuration."),
         ("Get Security Events", "GET", "/api/v1/admin/security/events", "bearer", None,
          [("limit", "50", True), ("cursor", "", True)],
-         "Paginated feed of recorded security events (rate-limit blocks, etc.).", None),
+         "Paginated feed of recorded security events (rate-limit blocks, etc.)."),
         ("Get CSRF Status", "GET", "/api/v1/admin/security/csrf-status", "bearer", None, None,
-         "Report whether cookie auth / CSRF middleware is active (informational; this API is bearer-JWT only today).", None),
+         "Report whether cookie auth / CSRF middleware is active (informational; this API is bearer-JWT only today)."),
     ]),
 ]
 
@@ -259,73 +257,61 @@ COLLECTION_VARIABLES = [
     ("eplSeasonIdentifier", "2026-27"),
 ]
 
-AUTH_TOKEN_CAPTURE_SCRIPT = [
-    "if ([200, 201].includes(pm.response.code)) {",
-    "    const json = pm.response.json();",
-    "    if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
-    "    if (json.refreshToken) pm.collectionVariables.set('refreshToken', json.refreshToken);",
-    "}",
-]
-
-# Requests whose response carries an id worth auto-saving into a collection variable, so the next
-# request down the chain (e.g. Get League after Create League) already has a real value to use.
-ID_CAPTURE = {
-    "Create League": ("leagueId", "leagueId"),
-    "Create Season": ("seasonId", "seasonId"),
-    "Create Fantasy Team": ("fantasyTeamId", "fantasyTeamId"),
-    "Create Draft": ("draftId", "draftId"),
-    "Create Invitation": ("invitationId", "invitationId"),
+# Requests whose response carries values worth auto-saving into same-named collection variables,
+# so the next request down the chain (e.g. Get League after Create League) already has a real value
+# to use. Keyed by request name; the values are the response fields to copy.
+RESPONSE_CAPTURES = {
+    "Register": ["accessToken", "refreshToken"],
+    "Login": ["accessToken", "refreshToken"],
+    "Refresh Token": ["accessToken", "refreshToken"],
+    "Create League": ["leagueId"],
+    "Create Season": ["seasonId"],
+    "Create Fantasy Team": ["fantasyTeamId"],
+    "Create Draft": ["draftId"],
+    "Create Invitation": ["invitationId"],
 }
 
+# Requests that need an Idempotency-Key header so a retry can't double-apply the action.
+IDEMPOTENT_REQUESTS = ["Make Draft Pick"]
 
-def id_capture_script(response_field, variable_name):
+
+def capture_script(fields) -> list:
+    """Postman test script that copies the named response fields into collection variables."""
+    assignments = [
+        f"    if (json.{field}) pm.collectionVariables.set('{field}', json.{field});"
+        for field in fields
+    ]
     return [
         "if ([200, 201].includes(pm.response.code)) {",
         "    const json = pm.response.json();",
-        f"    if (json.{response_field}) pm.collectionVariables.set('{variable_name}', json.{response_field});",
+        *assignments,
         "}",
     ]
 
 
 def to_postman_path(path: str) -> str:
-    # {leagueId} -> {{leagueId}}
-    out = []
-    i = 0
-    while i < len(path):
-        c = path[i]
-        if c == "{":
-            end = path.index("}", i)
-            var = path[i + 1:end]
-            out.append("{{" + var + "}}")
-            i = end + 1
-        else:
-            out.append(c)
-            i += 1
-    return "".join(out)
+    # /leagues/{leagueId} -> /leagues/{{leagueId}}
+    return path.replace("{", "{{").replace("}", "}}")
 
 
-def build_url(path: str, query):
+def build_url(path: str, query) -> dict:
     pm_path = to_postman_path(path)
-    raw = "{{baseUrl}}" + pm_path
     url = {
-        "raw": raw,
+        "raw": "{{baseUrl}}" + pm_path,
         "host": ["{{baseUrl}}"],
-        "path": [p for p in pm_path.lstrip("/").split("/") if p != ""],
+        "path": [segment for segment in pm_path.split("/") if segment],
     }
     if query:
-        raw_qs = []
-        q_list = []
-        for key, value, disabled in query:
-            q_list.append({"key": key, "value": value, "disabled": disabled})
-            if not disabled:
-                raw_qs.append(f"{key}={value}")
-        url["query"] = q_list
-        if raw_qs:
-            url["raw"] = raw + "?" + "&".join(raw_qs)
+        url["query"] = [
+            {"key": key, "value": value, "disabled": disabled} for key, value, disabled in query
+        ]
+        enabled = [f"{key}={value}" for key, value, disabled in query if not disabled]
+        if enabled:
+            url["raw"] += "?" + "&".join(enabled)
     return url
 
 
-def build_request(name, method, path, auth, body, query, description, script_tag):
+def build_request(name, method, path, auth, body, query, description) -> dict:
     request = {
         "method": method,
         "header": [],
@@ -339,7 +325,7 @@ def build_request(name, method, path, auth, body, query, description, script_tag
             "raw": json.dumps(body, indent=2),
             "options": {"raw": {"language": "json"}},
         }
-    if name == "Make Draft Pick":
+    if name in IDEMPOTENT_REQUESTS:
         request["header"].append({"key": "Idempotency-Key", "value": "{{$guid}}"})
     if auth == "noauth":
         request["auth"] = {"type": "noauth"}
@@ -349,45 +335,20 @@ def build_request(name, method, path, auth, body, query, description, script_tag
         "request": request,
         "response": [],
     }
-    if script_tag == "auth" and name in ("Register", "Login", "Refresh Token"):
+    if name in RESPONSE_CAPTURES:
         item["event"] = [{
             "listen": "test",
-            "script": {"type": "text/javascript", "exec": AUTH_TOKEN_CAPTURE_SCRIPT},
-        }]
-    elif name in ID_CAPTURE:
-        response_field, variable_name = ID_CAPTURE[name]
-        item["event"] = [{
-            "listen": "test",
-            "script": {"type": "text/javascript", "exec": id_capture_script(response_field, variable_name)},
+            "script": {"type": "text/javascript", "exec": capture_script(RESPONSE_CAPTURES[name])},
         }]
     return item
 
 
-def build_collection():
-    items = []
-    for folder_name, endpoints in FOLDERS:
-        folder_items = []
-        for entry in endpoints:
-            name, method, path, auth, body, query, description, script_tag = entry
-            folder_items.append(build_request(name, method, path, auth, body, query, description, script_tag))
-        items.append({
-            "name": folder_name,
-            "item": folder_items,
-        })
-
+def build_collection() -> dict:
     # Top-level health check, outside any folder.
-    health = {
-        "name": "Health Check",
-        "request": {
-            "method": "GET",
-            "header": [],
-            "url": build_url("/api/v1/health", None),
-            "description": "Confirms the API is running and its database connection is healthy. No auth required.",
-            "auth": {"type": "noauth"},
-        },
-        "response": [],
-    }
-    items.insert(0, health)
+    health = build_request(
+        "Health Check", "GET", "/api/v1/health", "noauth", None, None,
+        "Confirms the API is running and its database connection is healthy. No auth required.",
+    )
 
     # Retiring the account is a destructive, one-way action (BR-013 soft delete) -- deliberately
     # placed last so a top-to-bottom collection run exercises every other endpoint as the same
@@ -399,13 +360,16 @@ def build_collection():
         "Soft-delete (retire) the caller's own account; username becomes reusable. Deliberately "
         "the last request in this collection -- run it only when you're done exercising everything "
         "else as this user.",
-        None,
     )
-    items.append(retire)
 
-    collection = {
+    folders = [
+        {"name": folder_name, "item": [build_request(*endpoint) for endpoint in endpoints]}
+        for folder_name, endpoints in FOLDERS
+    ]
+
+    return {
         "info": {
-            "_postman_id": uid(),
+            "_postman_id": str(uuid.uuid4()),
             "name": "Fantasy EPL League Manager API",
             "description": (
                 "Every HTTP endpoint currently implemented in EplFantasy.Api, generated from "
@@ -427,10 +391,16 @@ def build_collection():
             "type": "bearer",
             "bearer": [{"key": "token", "value": "{{accessToken}}", "type": "string"}],
         },
-        "variable": [{"key": k, "value": v, "type": "string"} for k, v in COLLECTION_VARIABLES],
-        "item": items,
+        "variable": [
+            {"key": key, "value": value, "type": "string"} for key, value in COLLECTION_VARIABLES
+        ],
+        "item": [health, *folders, retire],
     }
-    return collection
+
+
+def count_requests(items) -> int:
+    """Total requests in a Postman item list, descending into folders."""
+    return sum(count_requests(item["item"]) if "item" in item else 1 for item in items)
 
 
 if __name__ == "__main__":
@@ -439,14 +409,4 @@ if __name__ == "__main__":
     out_path = os.path.join(repo_root, "EplFantasy.postman_collection.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(collection, f, indent=2)
-    # Count total requests for a sanity check.
-    total = 0
-    def count(items):
-        global total
-        for it in items:
-            if "item" in it:
-                count(it["item"])
-            else:
-                total += 1
-    count(collection["item"])
-    print(f"Wrote {out_path} with {total} requests")
+    print(f"Wrote {out_path} with {count_requests(collection['item'])} requests")
